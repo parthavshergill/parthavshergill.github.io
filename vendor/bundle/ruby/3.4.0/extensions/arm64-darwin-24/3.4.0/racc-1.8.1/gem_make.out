@@ -1,0 +1,18 @@
+current directory: /Users/parthav/Desktop/parthavshergill.github.io/parthavshergill.github.io/vendor/bundle/ruby/3.4.0/gems/racc-1.8.1/ext/racc/cparse
+/opt/homebrew/opt/ruby/bin/ruby extconf.rb
+creating Makefile
+
+current directory: /Users/parthav/Desktop/parthavshergill.github.io/parthavshergill.github.io/vendor/bundle/ruby/3.4.0/gems/racc-1.8.1/ext/racc/cparse
+make DESTDIR\= sitearchdir\=./.gem.20250721-37282-46pz2z sitelibdir\=./.gem.20250721-37282-46pz2z clean
+
+current directory: /Users/parthav/Desktop/parthavshergill.github.io/parthavshergill.github.io/vendor/bundle/ruby/3.4.0/gems/racc-1.8.1/ext/racc/cparse
+make DESTDIR\= sitearchdir\=./.gem.20250721-37282-46pz2z sitelibdir\=./.gem.20250721-37282-46pz2z
+compiling cparse.c
+linking shared-object racc/cparse.bundle
+
+current directory: /Users/parthav/Desktop/parthavshergill.github.io/parthavshergill.github.io/vendor/bundle/ruby/3.4.0/gems/racc-1.8.1/ext/racc/cparse
+make DESTDIR\= sitearchdir\=./.gem.20250721-37282-46pz2z sitelibdir\=./.gem.20250721-37282-46pz2z install
+/usr/bin/install -c -m 0755 cparse.bundle ./.gem.20250721-37282-46pz2z/racc
+
+current directory: /Users/parthav/Desktop/parthavshergill.github.io/parthavshergill.github.io/vendor/bundle/ruby/3.4.0/gems/racc-1.8.1/ext/racc/cparse
+make DESTDIR\= sitearchdir\=./.gem.20250721-37282-46pz2z sitelibdir\=./.gem.20250721-37282-46pz2z clean
