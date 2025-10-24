@@ -25,9 +25,9 @@ author:
   avatar           : "profile.png"
   name             : "Parthav Shergill"
   pronouns         : # example: "she/her"  
-  bio              : "AI/ML Engineer at Inflection AI. Building the future of conversational intelligence."
+  bio              : "Founding Engineer at a stealth startup. Building agent architectures for long context problems."
   location         : "San Francisco Bay Area"
-  employer         : "Inflection AI"
+  employer         : "Stealth Startup"
   uri              : # URL
   email            : "your-email@example.com"
 
