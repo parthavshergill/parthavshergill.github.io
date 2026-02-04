@@ -14,6 +14,7 @@
       color: #1a1a1a;
       background: #fafafa;
       padding: 3rem 1.5rem;
+      min-height: 100vh;
     }
 
     main {
@@ -45,6 +46,7 @@
       display: flex;
       gap: 1.5rem;
       flex-wrap: wrap;
+      margin-bottom: 3rem;
     }
 
     .links a {
@@ -55,6 +57,104 @@
 
     .links a:hover {
       text-decoration: underline;
+    }
+
+    /* Agent - integrated, minimal */
+    #agent {
+      border-top: 1px solid #e0e0e0;
+      padding-top: 2rem;
+    }
+
+    #agent-input {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #agent-input input {
+      flex: 1;
+      font-family: inherit;
+      font-size: 1rem;
+      color: #1a1a1a;
+      background: transparent;
+      border: none;
+      outline: none;
+    }
+
+    #agent-input input::placeholder {
+      color: #999;
+    }
+
+    #agent-input .key-btn {
+      font-size: 0.75rem;
+      color: #999;
+      background: none;
+      border: 1px solid #ddd;
+      padding: 0.25rem 0.5rem;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    #agent-input .key-btn:hover {
+      border-color: #bbb;
+      color: #666;
+    }
+
+    #agent-input .key-btn.set {
+      border-color: #9c9;
+      color: #696;
+    }
+
+    #log {
+      margin-top: 1.5rem;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    #log.visible {
+      display: block;
+    }
+
+    #log .entry {
+      margin: 0.75rem 0;
+    }
+
+    #log .prompt {
+      color: #666;
+      font-style: italic;
+    }
+
+    #log .code {
+      background: #f0f0f0;
+      border-radius: 4px;
+      padding: 0.75rem 1rem;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 0.8rem;
+      color: #444;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    #log .response {
+      color: #333;
+      line-height: 1.5;
+    }
+
+    #log .response strong {
+      font-weight: 600;
+    }
+
+    #log .result {
+      color: #696;
+      font-size: 0.8rem;
+    }
+
+    #log .error {
+      color: #c66;
+      background: #fef0f0;
+      padding: 0.5rem 0.75rem;
+      border-radius: 4px;
     }
 
     @media (max-width: 480px) {
@@ -75,6 +175,171 @@
       <a href="https://github.com/parthavshergill">GitHub</a>
       <a href="https://www.linkedin.com/in/parthav-shergill/">LinkedIn</a>
     </div>
+
+    <div id="agent">
+      <div id="agent-input">
+        <span style="color:#999">→</span>
+        <input type="text" id="prompt" placeholder="modify this page..." autofocus>
+        <button class="key-btn" id="key-btn" onclick="setKey()">key</button>
+      </div>
+      <div id="log"></div>
+    </div>
   </main>
+
+  <script>
+    const PROXY_URL = 'https://claude-proxy.parthavshergill.workers.dev';
+    let apiKey = localStorage.getItem('anthropic_key') || '';
+
+    if (apiKey) document.getElementById('key-btn').classList.add('set');
+
+    function setKey() {
+      const key = prompt('Enter Anthropic API key:', apiKey);
+      if (key !== null) {
+        apiKey = key;
+        localStorage.setItem('anthropic_key', key);
+        document.getElementById('key-btn').classList.toggle('set', !!key);
+      }
+    }
+
+    function renderMarkdown(text) {
+      return text
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:0.1rem 0.3rem;border-radius:3px;font-size:0.85em">$1</code>')
+        .replace(/\n/g, '<br>');
+    }
+
+    function log(msg, type = 'response') {
+      const logEl = document.getElementById('log');
+      logEl.classList.add('visible');
+      const div = document.createElement('div');
+      div.className = 'entry';
+
+      if (type === 'prompt') {
+        div.innerHTML = `<div class="prompt">→ ${msg}</div>`;
+      } else if (type === 'code') {
+        div.innerHTML = `<pre class="code">${msg}</pre>`;
+      } else if (type === 'result') {
+        div.innerHTML = `<div class="result">${msg}</div>`;
+      } else if (type === 'error') {
+        div.innerHTML = `<div class="error">${msg}</div>`;
+      } else {
+        div.innerHTML = `<div class="response">${renderMarkdown(msg)}</div>`;
+      }
+
+      logEl.appendChild(div);
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    function clearLog() {
+      const logEl = document.getElementById('log');
+      logEl.innerHTML = '';
+      logEl.classList.remove('visible');
+    }
+
+    function getPageContext() {
+      const clone = document.documentElement.cloneNode(true);
+      clone.querySelector('#agent')?.remove();
+      clone.querySelector('script')?.remove();
+      return clone.outerHTML;
+    }
+
+    async function callClaude(messages) {
+      const res = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: apiKey,
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 4096,
+          system: `You are an agent that modifies this webpage by executing JavaScript. You have one tool: execute_js.
+
+Current HTML:
+${getPageContext()}
+
+Guidelines:
+- Use execute_js to modify the DOM
+- Be concise, minimal commentary
+- After executing, briefly confirm what you did`,
+          messages,
+          tools: [{
+            name: 'execute_js',
+            description: 'Execute JavaScript to modify the page DOM',
+            input_schema: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', description: 'JavaScript code to execute' }
+              },
+              required: ['code']
+            }
+          }]
+        })
+      });
+      return res.json();
+    }
+
+    async function run(userPrompt) {
+      const isLocal = PROXY_URL.includes('localhost');
+      if (!apiKey && !isLocal) {
+        setKey();
+        if (!apiKey) return;
+      }
+
+      clearLog();
+      const messages = [{ role: 'user', content: userPrompt }];
+      log(userPrompt, 'prompt');
+
+      while (true) {
+        const response = await callClaude(messages);
+
+        if (response.error) {
+          log(`Error: ${response.error.message || response.error}`, 'error');
+          break;
+        }
+
+        let hasToolUse = false;
+        const toolResults = [];
+
+        for (const block of response.content) {
+          if (block.type === 'text' && block.text) {
+            log(block.text, 'response');
+          }
+
+          if (block.type === 'tool_use' && block.name === 'execute_js') {
+            hasToolUse = true;
+            const code = block.input.code;
+            log(code, 'code');
+
+            let result;
+            try {
+              result = eval(code);
+              log('✓ executed', 'result');
+            } catch (e) {
+              result = `Error: ${e.message}`;
+              log(result, 'error');
+            }
+
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: block.id,
+              content: String(result ?? 'ok')
+            });
+          }
+        }
+
+        if (!hasToolUse) break;
+
+        messages.push({ role: 'assistant', content: response.content });
+        messages.push({ role: 'user', content: toolResults });
+      }
+    }
+
+    document.getElementById('prompt').addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter' && e.target.value.trim()) {
+        const prompt = e.target.value.trim();
+        e.target.value = '';
+        await run(prompt);
+      }
+    });
+  </script>
 </body>
 </html>
