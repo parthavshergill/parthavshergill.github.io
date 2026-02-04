@@ -59,7 +59,6 @@
       text-decoration: underline;
     }
 
-    /* Agent - integrated, minimal */
     #agent {
       border-top: 1px solid #e0e0e0;
       padding-top: 2rem;
@@ -107,7 +106,6 @@
 
     #log {
       margin-top: 1.5rem;
-      font-size: 0.9rem;
       display: none;
     }
 
@@ -115,46 +113,64 @@
       display: block;
     }
 
-    #log .entry {
+    .turn {
+      border-left: 2px solid #e0e0e0;
+      padding-left: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .turn-user {
+      color: #666;
+      margin-bottom: 0.75rem;
+    }
+
+    .turn-code {
       margin: 0.75rem 0;
     }
 
-    #log .prompt {
-      color: #666;
-      font-style: italic;
+    .turn-code summary {
+      font-size: 0.8rem;
+      color: #999;
+      cursor: pointer;
     }
 
-    #log .code {
-      background: #f0f0f0;
+    .turn-code pre {
+      background: #f4f4f4;
       border-radius: 4px;
-      padding: 0.75rem 1rem;
+      padding: 0.75rem;
+      margin-top: 0.5rem;
       font-family: 'SF Mono', Monaco, 'Courier New', monospace;
       font-size: 0.8rem;
-      color: #444;
       overflow-x: auto;
       white-space: pre-wrap;
       word-break: break-word;
     }
 
-    #log .response {
+    .turn-response {
       color: #333;
-      line-height: 1.5;
     }
 
-    #log .response strong {
-      font-weight: 600;
+    .turn-response a {
+      color: #0066cc;
     }
 
-    #log .result {
-      color: #696;
-      font-size: 0.8rem;
+    .turn-response ul, .turn-response ol {
+      margin: 0.5rem 0 0.5rem 1.5rem;
     }
 
-    #log .error {
-      color: #c66;
-      background: #fef0f0;
-      padding: 0.5rem 0.75rem;
-      border-radius: 4px;
+    .turn-response li {
+      margin: 0.25rem 0;
+    }
+
+    .turn-response code {
+      background: #f4f4f4;
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+
+    .turn-error {
+      color: #c44;
     }
 
     @media (max-width: 480px) {
@@ -186,6 +202,7 @@
     </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/snarkdown@2.0.0/dist/snarkdown.umd.js"></script>
   <script>
     const PROXY_URL = 'https://claude-proxy.parthavshergill.workers.dev';
     let apiKey = localStorage.getItem('anthropic_key') || '';
@@ -199,41 +216,6 @@
         localStorage.setItem('anthropic_key', key);
         document.getElementById('key-btn').classList.toggle('set', !!key);
       }
-    }
-
-    function renderMarkdown(text) {
-      return text
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/`([^`]+)`/g, '<code style="background:#f0f0f0;padding:0.1rem 0.3rem;border-radius:3px;font-size:0.85em">$1</code>')
-        .replace(/\n/g, '<br>');
-    }
-
-    function log(msg, type = 'response') {
-      const logEl = document.getElementById('log');
-      logEl.classList.add('visible');
-      const div = document.createElement('div');
-      div.className = 'entry';
-
-      if (type === 'prompt') {
-        div.innerHTML = `<div class="prompt">→ ${msg}</div>`;
-      } else if (type === 'code') {
-        div.innerHTML = `<pre class="code">${msg}</pre>`;
-      } else if (type === 'result') {
-        div.innerHTML = `<div class="result">${msg}</div>`;
-      } else if (type === 'error') {
-        div.innerHTML = `<div class="error">${msg}</div>`;
-      } else {
-        div.innerHTML = `<div class="response">${renderMarkdown(msg)}</div>`;
-      }
-
-      logEl.appendChild(div);
-      window.scrollTo(0, document.body.scrollHeight);
-    }
-
-    function clearLog() {
-      const logEl = document.getElementById('log');
-      logEl.innerHTML = '';
-      logEl.classList.remove('visible');
     }
 
     function getPageContext() {
@@ -251,15 +233,17 @@
           key: apiKey,
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 4096,
-          system: `You are an agent that modifies this webpage by executing JavaScript. You have one tool: execute_js.
+          system: `You modify this webpage by executing JavaScript.
 
 Current HTML:
 ${getPageContext()}
 
-Guidelines:
-- Use execute_js to modify the DOM
-- Be concise, minimal commentary
-- After executing, briefly confirm what you did`,
+You have one tool: execute_js. Use it to modify the DOM.
+
+Response format:
+- First, call execute_js with your code
+- Then respond briefly confirming what you did
+- You can use markdown: **bold**, [links](url), and lists`,
           messages,
           tools: [{
             name: 'execute_js',
@@ -284,38 +268,53 @@ Guidelines:
         if (!apiKey) return;
       }
 
-      clearLog();
+      const logEl = document.getElementById('log');
+      logEl.classList.add('visible');
+
+      // Create turn container (prepend so newest is on top)
+      const turn = document.createElement('div');
+      turn.className = 'turn';
+      logEl.prepend(turn);
+
+      // User message
+      const userMsg = document.createElement('div');
+      userMsg.className = 'turn-user';
+      userMsg.textContent = userPrompt;
+      turn.appendChild(userMsg);
+
       const messages = [{ role: 'user', content: userPrompt }];
-      log(userPrompt, 'prompt');
+      let allCode = [];
 
       while (true) {
         const response = await callClaude(messages);
 
         if (response.error) {
-          log(`Error: ${response.error.message || response.error}`, 'error');
+          const errMsg = document.createElement('div');
+          errMsg.className = 'turn-error';
+          errMsg.textContent = response.error.message || response.error;
+          turn.appendChild(errMsg);
           break;
         }
 
         let hasToolUse = false;
         const toolResults = [];
+        let agentText = '';
 
         for (const block of response.content) {
           if (block.type === 'text' && block.text) {
-            log(block.text, 'response');
+            agentText += block.text;
           }
 
           if (block.type === 'tool_use' && block.name === 'execute_js') {
             hasToolUse = true;
             const code = block.input.code;
-            log(code, 'code');
+            allCode.push(code);
 
             let result;
             try {
               result = eval(code);
-              log('✓ executed', 'result');
             } catch (e) {
               result = `Error: ${e.message}`;
-              log(result, 'error');
             }
 
             toolResults.push({
@@ -326,11 +325,29 @@ Guidelines:
           }
         }
 
-        if (!hasToolUse) break;
+        if (!hasToolUse) {
+          // Collapsed code
+          if (allCode.length > 0) {
+            const details = document.createElement('details');
+            details.className = 'turn-code';
+            details.innerHTML = `<summary>code</summary><pre>${allCode.join('\n\n')}</pre>`;
+            turn.appendChild(details);
+          }
+
+          // Agent response
+          if (agentText.trim()) {
+            const agentMsg = document.createElement('div');
+            agentMsg.className = 'turn-response';
+            agentMsg.innerHTML = snarkdown(agentText.trim());
+            turn.appendChild(agentMsg);
+          }
+          break;
+        }
 
         messages.push({ role: 'assistant', content: response.content });
         messages.push({ role: 'user', content: toolResults });
       }
+
     }
 
     document.getElementById('prompt').addEventListener('keydown', async (e) => {
