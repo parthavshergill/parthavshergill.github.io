@@ -26,62 +26,119 @@
       line-height: 1.65;
       color: var(--ink);
       background: var(--paper);
-      padding: 0 1.5rem 5rem;
+      padding: 0 2rem;
       min-height: 100vh;
     }
 
     main {
-      max-width: 820px;
+      max-width: 1180px;
       margin: 0 auto;
     }
 
-    .masthead {
+    .pathbar {
+      display: flex;
+      align-items: center;
+      min-height: 3.35rem;
+      border-bottom: 1px solid var(--blue);
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+    }
+
+    .pathbar .home {
+      color: var(--red);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 215px minmax(0, 1fr);
+    }
+
+    .navigator {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      min-height: calc(100vh - 3.35rem);
+      padding: 2.15rem 1.6rem 4rem 0;
+      border-right: 1px solid var(--rule);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.72rem;
+    }
+
+    .tree,
+    .tree ul {
+      list-style: none;
+    }
+
+    .tree {
+      margin-left: 0.35rem;
+      padding-left: 0.85rem;
+      border-left: 1px solid var(--rule);
+    }
+
+    .tree li {
+      position: relative;
+    }
+
+    .tree li::before {
+      content: '';
+      position: absolute;
+      top: 0.95rem;
+      left: -0.85rem;
+      width: 0.55rem;
+      border-top: 1px solid var(--rule);
+    }
+
+    .tree a {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      gap: 2rem;
-      padding: 1.4rem 0 1.1rem;
-      border-bottom: 1px solid var(--blue);
-    }
-
-    h1 {
-      color: var(--blue);
-      font-size: 1.85rem;
-      font-weight: 600;
-      line-height: 1.1;
-      letter-spacing: -0.025em;
-    }
-
-    .links {
-      display: flex;
-      gap: 1.1rem;
-      flex-wrap: wrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.73rem;
-      letter-spacing: 0.04em;
-      text-transform: lowercase;
-    }
-
-    .links a::before {
-      content: '/';
-      color: var(--red);
-      margin-right: 0.15rem;
-    }
-
-    .links a {
+      gap: 0.5rem;
+      padding: 0.42rem 0;
       color: var(--blue);
       text-decoration: none;
     }
 
-    .links a:hover {
+    .tree a:hover,
+    .tree a:focus-visible {
       text-decoration: underline;
       text-underline-offset: 0.18em;
     }
 
+    .tree a.active {
+      margin-left: -0.62rem;
+      padding-left: 0.5rem;
+      border-left: 2px solid var(--red);
+      background: #ebe9e2;
+      color: var(--ink);
+      text-decoration: none;
+    }
+
+    .tree .social-first {
+      margin-top: 0.65rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--rule);
+    }
+
+    .tree .external::after {
+      content: '↗';
+      color: var(--muted);
+      font-size: 0.62rem;
+    }
+
+    .content {
+      min-width: 0;
+      padding: 2.15rem 0 5rem 2.8rem;
+    }
+
+    .document {
+      padding: 0 0 4.4rem;
+      scroll-margin-top: 1.5rem;
+    }
+
     .bio {
-      max-width: 760px;
-      padding: 3.2rem 0 3.5rem;
-      font-size: 1.16rem;
+      max-width: 780px;
+      font-size: 1.2rem;
       line-height: 1.75;
       text-wrap: pretty;
     }
@@ -90,21 +147,39 @@
       color: var(--blue);
       text-decoration: underline;
       text-decoration-thickness: 1px;
-      text-underline-offset: 0.16em;
+      text-underline-offset: 0.18em;
     }
 
-    .reads {
-      border-top: 3px double var(--rule);
-      padding-top: 1.7rem;
+    .archive-section {
+      margin-bottom: 4rem;
+      scroll-margin-top: 1.5rem;
     }
 
-    .reads h2 {
-      margin-bottom: 1.1rem;
-      color: var(--red);
+    .section-heading {
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.55rem;
+      border-bottom: 1px solid var(--blue);
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.95rem;
+    }
+
+    .section-heading h2 {
+      color: var(--blue);
+      font-size: 0.84rem;
       font-weight: 600;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.01em;
+    }
+
+    .section-heading h2::before {
+      content: '▾ ';
+      color: var(--red);
+    }
+
+    .empty-directory {
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--rule);
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.68rem;
     }
 
     .reading-list {
@@ -142,6 +217,16 @@
       line-height: 1.45;
     }
 
+    .reading-title::before {
+      content: '↗';
+      display: inline-block;
+      width: 1.25rem;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.68rem;
+      vertical-align: 0.08em;
+    }
+
     .reading-meta {
       grid-column: 2;
       grid-row: 1;
@@ -151,21 +236,175 @@
       white-space: nowrap;
     }
 
-    @media (max-width: 620px) {
+    @media (max-width: 720px) {
       body { padding-inline: 1.1rem; }
-      .masthead { align-items: flex-start; flex-direction: column; gap: 0.8rem; }
-      h1 { font-size: 1.65rem; }
-      .bio { padding: 2.5rem 0 2.8rem; font-size: 1.05rem; }
+      .workspace { grid-template-columns: 1fr; gap: 2.5rem; padding-top: 1.4rem; }
+      .navigator { position: static; min-height: 0; padding: 0 0 1.25rem; border-right: 0; border-bottom: 1px solid var(--rule); }
+      .content { padding: 0 0 4rem; }
+      .tree { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.5rem; }
+      .document { padding: 0 0 2.8rem; }
+      .bio { font-size: 1.05rem; }
       .reading-list a { grid-template-columns: 1fr; gap: 0.18rem; padding: 0.85rem 0; }
       .reading-meta { grid-column: 1; grid-row: 2; white-space: normal; }
+    }
+  </style>
+  <style>
+    :root {
+      --paper: #f2f0e6;
+      --ink: #24231f;
+      --muted: #6b6961;
+      --rule: #aaa79c;
+      --wash: rgba(36, 35, 31, 0.045);
+    }
+
+    html {
+      height: 100%;
+      border: 0;
+      background: var(--paper);
+    }
+
+    body {
+      height: 100dvh;
+      min-height: 0;
+      padding: 0 1.4rem 1.4rem;
+      overflow: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Georgia, 'Times New Roman', serif;
+      line-height: 1.55;
+      text-rendering: optimizeLegibility;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 800px;
+      height: 100%;
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 2rem;
+      min-height: 3.65rem;
+      padding: 1.2rem 0 0.9rem;
+      border-bottom: 2px solid var(--ink);
+    }
+
+    .brand {
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.86rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .socials {
+      display: flex;
+      gap: 1.25rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0;
+    }
+
+    .socials a { color: var(--muted); text-decoration: none; }
+    .socials a:hover,
+    .socials a:focus-visible { text-decoration: underline; text-underline-offset: 0.22em; }
+
+    .bio {
+      max-width: 760px;
+      padding-top: 2.8rem;
+      color: var(--ink);
+      font-size: 1.12rem;
+      line-height: 1.7;
+    }
+
+    .bio a {
+      color: inherit;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
+    }
+
+    .reading-section {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+      padding-top: 3rem;
+    }
+
+    .reading-section h1 {
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.7rem;
+      border-bottom: 1px solid var(--ink);
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .reading-list {
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-color: var(--rule) transparent;
+      scrollbar-width: thin;
+    }
+
+    .reading-list:focus-visible {
+      outline: 1px solid var(--ink);
+      outline-offset: 4px;
+    }
+
+    .reading-list::-webkit-scrollbar { width: 5px; }
+    .reading-list::-webkit-scrollbar-track { background: transparent; }
+    .reading-list::-webkit-scrollbar-thumb { background: var(--rule); }
+
+    .reading-list li { border-top: 0; border-bottom: 1px solid var(--rule); }
+
+    .reading-list a {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1.75rem;
+      align-items: baseline;
+      margin: 0 -0.55rem;
+      padding: 0.86rem 0.55rem;
+    }
+
+    .reading-list a:hover,
+    .reading-list a:focus-visible { background: var(--wash); }
+
+    .reading-title { font-size: 1rem; line-height: 1.4; }
+    .reading-title::before { content: none; }
+
+    .reading-meta {
+      color: var(--muted);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 0.66rem;
+      letter-spacing: 0.015em;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 620px) {
+      body { padding-inline: 1rem; }
+      .topbar { align-items: flex-start; gap: 1.25rem; }
+      .socials { gap: 0.85rem; font-size: 0.6rem; }
+      .reading-section { padding-top: 2.35rem; }
+      .reading-list a { grid-template-columns: 1fr; gap: 0.2rem; padding-block: 0.9rem; }
+      .reading-meta { white-space: normal; }
     }
   </style>
 </head>
 <body>
   <main>
-    <header class="masthead">
-      <h1>Parthav Shergill</h1>
-      <nav class="links" aria-label="Elsewhere">
+    <header class="topbar">
+      <span class="brand">parthav-shergill</span>
+      <nav class="socials" aria-label="Elsewhere">
         <a href="https://github.com/parthavshergill">github</a>
         <a href="https://x.com/parthavshergill">x</a>
         <a href="https://www.linkedin.com/in/parthav-shergill/">linkedin</a>
@@ -175,40 +414,31 @@
     <p class="bio">
       I build tools and infrastructure that help people and AI systems solve problems they could not solve alone. At <a href="https://effectiveailabs.com/">Effective AI</a>, I focus on RSL, an internal language and compiler that enables agents to design commercial insurance pricing algorithms, and work on core platform infrastructure, including our cloud agent runtime and multi-agent harness.
     </p>
-    <section class="reads" aria-labelledby="reads-title">
-      <h2 id="reads-title">#interesting-reads</h2>
-      <!-- data-added controls newest-first ordering and is intentionally not displayed. -->
-      <ol class="reading-list">
-        <li data-added="2026-08-14"><a href="https://bartoszmilewski.com/category/category-theory/"><span class="reading-title">Category Theory for Programmers</span><span class="reading-meta">Bartosz Milewski · PL</span></a></li>
+
+    <section class="reading-section" aria-labelledby="reading-list-title">
+      <h1 id="reading-list-title">reading-list</h1>
+      <!-- Intentionally ordered from most theoretical to most practical. -->
+      <ol class="reading-list" tabindex="0">
+        <li data-added="2026-08-14"><a href="https://bartoszmilewski.com/2014/11/04/category-the-essence-of-composition/"><span class="reading-title">Category Theory for Programmers</span><span class="reading-meta">Bartosz Milewski · PL</span></a></li>
         <li data-added="2026-07-21"><a href="https://arxiv.org/abs/cs/9401101"><span class="reading-title">Teleo-Reactive Programs</span><span class="reading-meta">Nils Nilsson · agents</span></a></li>
+        <li data-added="2026-08-24"><a href="https://gwern.net/doc/philosophy/epistemology/1964-platt.pdf"><span class="reading-title">Strong Inference</span><span class="reading-meta">John R. Platt · scientific method</span></a></li>
         <li data-added="2026-08-15"><a href="https://ivan-gavran.github.io/0-social-processes-paper"><span class="reading-title">The Case Against Formal Verification, 50 Years Later</span><span class="reading-meta">Ivan Gavran · formal methods</span></a></li>
         <li data-added="2026-07-25"><a href="https://leodemoura.github.io/static/floc26/"><span class="reading-title">Lean at FLoC 2026</span><span class="reading-meta">Leonardo de Moura · theorem proving</span></a></li>
-        <li data-added="2026-08-05"><a href="https://aramesh10.github.io/ml-compilers-primer/index.html"><span class="reading-title">A Primer to ML Compilers</span><span class="reading-meta">Aditya Ramesh · compilers</span></a></li>
-        <li data-added="2026-07-27"><a href="https://docs.pytorch.org/devlogs/compiler/2026-07-25-pytorch-a-reference-language/"><span class="reading-title">PyTorch: A Reference Language</span><span class="reading-meta">Edward Z. Yang · ML compilers</span></a></li>
-        <li data-added="2026-08-28"><a href="https://horace.io/brrr_intro.html"><span class="reading-title">Making Deep Learning Go Brrrr From First Principles</span><span class="reading-meta">Horace He · performance</span></a></li>
-        <li data-added="2026-07-25"><a href="https://escholarship.org/uc/item/5tz795vq"><span class="reading-title">The Roofline Model</span><span class="reading-meta">Williams et al. · performance</span></a></li>
         <li data-added="2026-07-25"><a href="https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html"><span class="reading-title">What Every Computer Scientist Should Know About Floating-Point Arithmetic</span><span class="reading-meta">David Goldberg · numerics</span></a></li>
-        <li data-added="2026-08-21"><a href="https://danluu.com/perf-opt/"><span class="reading-title">There’s No Reason for Software to Be Slow Anymore</span><span class="reading-meta">Dan Luu · performance</span></a></li>
-        <li data-added="2026-01-21"><a href="https://blog.wilsonl.in/search-engine/"><span class="reading-title">Building a Search Engine from Scratch</span><span class="reading-meta">Wilson Lin · systems</span></a></li>
-        <li data-added="2026-08-18"><a href="https://linear.app/now/rebuilding-delta-sync-read-path"><span class="reading-title">Rebuilding Linear’s Delta-Sync Read Path</span><span class="reading-meta">Linear · distributed systems</span></a></li>
+        <li data-added="2026-07-25"><a href="https://escholarship.org/uc/item/5tz795vq"><span class="reading-title">The Roofline Model</span><span class="reading-meta">Williams et al. · performance</span></a></li>
+        <li data-added="2026-08-23"><a href="https://jax-ml.github.io/scaling-book/"><span class="reading-title">How to Scale Your Model</span><span class="reading-meta">Austin et al. · ML systems</span></a></li>
         <li data-added="2026-06-14"><a href="https://www.linkedin.com/blog/engineering/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying"><span class="reading-title">The Log: What Every Software Engineer Should Know About Real-Time Data</span><span class="reading-meta">Jay Kreps · distributed systems</span></a></li>
         <li data-added="2026-06-16"><a href="https://planetscale.com/blog/the-feedback-loops-behind-kubernetes"><span class="reading-title">The Feedback Loops Behind Kubernetes</span><span class="reading-meta">Fatih Arslan · control systems</span></a></li>
-        <li data-added="2026-08-24"><a href="https://gwern.net/doc/philosophy/epistemology/1964-platt.pdf"><span class="reading-title">Strong Inference</span><span class="reading-meta">John R. Platt · scientific method</span></a></li>
-        <li data-added="2026-08-23"><a href="https://jax-ml.github.io/scaling-book/"><span class="reading-title">How to Scale Your Model</span><span class="reading-meta">Austin et al. · ML systems</span></a></li>
-        <li data-added="2026-07-06"><a href="https://modal.com/llm-almanac/spec-dec-roofline"><span class="reading-title">Speculative-Decoding Roofline</span><span class="reading-meta">Modal · inference</span></a></li>
+        <li data-added="2026-08-05"><a href="https://aramesh10.github.io/ml-compilers-primer/index.html"><span class="reading-title">A Primer to ML Compilers</span><span class="reading-meta">Aditya Ramesh · compilers</span></a></li>
+        <li data-added="2026-07-27"><a href="https://docs.pytorch.org/devlogs/compiler/2026-07-25-pytorch-a-reference-language/"><span class="reading-title">PyTorch: A Reference Language</span><span class="reading-meta">Edward Z. Yang · ML compilers</span></a></li>
         <li data-added="2026-08-28"><a href="https://theconsensus.dev/p/2026/06/27/the-feature-in-oxcaml-more-languages-should-steal.html"><span class="reading-title">The Feature in OxCaml That More Languages Should Steal</span><span class="reading-meta">Phil Eaton · programming languages</span></a></li>
+        <li data-added="2026-07-06"><a href="https://modal.com/llm-almanac/spec-dec-roofline"><span class="reading-title">Speculative-Decoding Roofline</span><span class="reading-meta">Modal · inference</span></a></li>
+        <li data-added="2026-08-21"><a href="https://danluu.com/perf-opt/"><span class="reading-title">There’s No Reason for Software to Be Slow Anymore</span><span class="reading-meta">Dan Luu · performance</span></a></li>
+        <li data-added="2026-08-18"><a href="https://linear.app/now/rebuilding-delta-sync-read-path"><span class="reading-title">Rebuilding Linear’s Delta-Sync Read Path</span><span class="reading-meta">Linear · distributed systems</span></a></li>
+        <li data-added="2026-01-21"><a href="https://blog.wilsonl.in/search-engine/"><span class="reading-title">Building a Search Engine from Scratch</span><span class="reading-meta">Wilson Lin · systems</span></a></li>
+        <li data-added="2026-08-28"><a href="https://horace.io/brrr_intro.html"><span class="reading-title">Making Deep Learning Go Brrrr From First Principles</span><span class="reading-meta">Horace He · performance</span></a></li>
       </ol>
     </section>
   </main>
-  <script>
-    const readingList = document.querySelector('.reading-list');
-    const readings = [...readingList.children];
-
-    readings
-      .sort((a, b) => b.dataset.added.localeCompare(a.dataset.added))
-      .forEach((reading) => {
-        readingList.append(reading);
-      });
-  </script>
 </body>
 </html>
