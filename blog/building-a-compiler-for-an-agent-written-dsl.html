@@ -221,7 +221,7 @@
     <ul>
       <li><strong>One source of truth for semantics and backend parity.</strong> The native evaluator, Python export, Excel export, and JSON representation should all be projections of the same typed program, rather than separate implementations of what RSL means.</li>
       <li><strong>The standard properties of a total function.</strong> For any valid input, the rater should produce either a rating result or an explicit rejection, and the same program, tables, and inputs should always produce the same result.</li>
-      <li><strong>Total lookups.</strong> If a program reads from an ordinary rating table, every possible runtime key should select exactly one row under that table's matching rules.</li>
+      <li><strong>Total lookups.</strong> If a program reads from an ordinary rating table, every possible runtime key should resolve unambiguously to a value under that table’s matching rules.</li>
       <li><strong>Static errors where possible.</strong> Missing references, incompatible types, malformed tables, and other structural problems should fail at compile time rather than turn into strange premiums at runtime.</li>
       <li><strong>Introspection.</strong> The compiler should be able to answer questions like: what does this value depend on, which source filing did this calculation come from, what inputs can reach this branch, and what table does this lookup use?</li>
     </ul>
