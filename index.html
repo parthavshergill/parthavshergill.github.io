@@ -330,6 +330,7 @@
     }
 
     .reading-section {
+      position: relative;
       display: flex;
       flex: 1;
       flex-direction: column;
@@ -350,6 +351,7 @@
 
     .reading-list {
       min-height: 0;
+      padding-bottom: 4.4rem;
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-color: var(--rule) transparent;
@@ -364,6 +366,34 @@
     .reading-list::-webkit-scrollbar { width: 5px; }
     .reading-list::-webkit-scrollbar-track { background: transparent; }
     .reading-list::-webkit-scrollbar-thumb { background: var(--rule); }
+
+    .scroll-cue {
+      display: grid;
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 1;
+      height: 4.4rem;
+      place-items: center;
+      padding-top: 1.2rem;
+      background: linear-gradient(
+        to bottom,
+        rgba(242, 240, 230, 0),
+        var(--paper) 48%,
+        var(--paper)
+      );
+      color: var(--muted);
+    }
+
+    .scroll-cue::before {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-right: 1px solid currentColor;
+      border-bottom: 1px solid currentColor;
+      content: '';
+      transform: translateY(-0.15rem) rotate(45deg);
+    }
 
     .reading-list li { border-top: 0; border-bottom: 1px solid var(--rule); }
 
@@ -438,6 +468,7 @@
         <li data-added="2026-01-21"><a href="https://blog.wilsonl.in/search-engine/"><span class="reading-title">Building a Search Engine from Scratch</span><span class="reading-meta">Wilson Lin · systems</span></a></li>
         <li data-added="2026-08-28"><a href="https://horace.io/brrr_intro.html"><span class="reading-title">Making Deep Learning Go Brrrr From First Principles</span><span class="reading-meta">Horace He · performance</span></a></li>
       </ol>
+      <div class="scroll-cue" aria-hidden="true"></div>
     </section>
   </main>
 </body>
