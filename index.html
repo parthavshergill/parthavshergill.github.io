@@ -4,359 +4,211 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Parthav Shergill</title>
-  <meta name="description" content="Founding Engineer building agent architectures for long context problems.">
+  <meta name="description" content="Parthav Shergill builds tools and infrastructure for people and AI systems.">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
+    :root {
+      --paper: #f5f4ef;
+      --ink: #25282c;
+      --muted: #6e7175;
+      --rule: #d7d5ce;
+      --blue: #234f81;
+      --red: #8b332a;
+    }
+
+    html {
+      border-top: 5px solid var(--red);
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-      line-height: 1.6;
-      color: #1a1a1a;
-      background: #fafafa;
-      padding: 3rem 1.5rem;
+      font-family: Georgia, 'Times New Roman', serif;
+      line-height: 1.65;
+      color: var(--ink);
+      background: var(--paper);
+      padding: 0 1.5rem 5rem;
       min-height: 100vh;
     }
 
     main {
-      max-width: 600px;
+      max-width: 820px;
       margin: 0 auto;
     }
 
+    .masthead {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 2rem;
+      padding: 1.4rem 0 1.1rem;
+      border-bottom: 1px solid var(--blue);
+    }
+
     h1 {
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 2.5rem;
-      font-weight: 400;
-      margin-bottom: 0.5rem;
-      letter-spacing: -0.02em;
-    }
-
-    .tagline {
-      color: #666;
-      font-size: 1.1rem;
-      margin-bottom: 2rem;
-    }
-
-    .bio {
-      font-size: 1.1rem;
-      margin-bottom: 2rem;
-      color: #333;
+      color: var(--blue);
+      font-size: 1.85rem;
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -0.025em;
     }
 
     .links {
       display: flex;
-      gap: 1.5rem;
+      gap: 1.1rem;
       flex-wrap: wrap;
-      margin-bottom: 3rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.73rem;
+      letter-spacing: 0.04em;
+      text-transform: lowercase;
+    }
+
+    .links a::before {
+      content: '/';
+      color: var(--red);
+      margin-right: 0.15rem;
     }
 
     .links a {
-      color: #0066cc;
+      color: var(--blue);
       text-decoration: none;
-      font-size: 1rem;
     }
 
     .links a:hover {
       text-decoration: underline;
+      text-underline-offset: 0.18em;
     }
 
-    #agent {
-      border-top: 1px solid #e0e0e0;
-      padding-top: 2rem;
+    .bio {
+      max-width: 760px;
+      padding: 3.2rem 0 3.5rem;
+      font-size: 1.16rem;
+      line-height: 1.75;
+      text-wrap: pretty;
     }
 
-    #agent-input {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
+    .bio a {
+      color: var(--blue);
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.16em;
     }
 
-    #agent-input input {
-      flex: 1;
-      font-family: inherit;
-      font-size: 1rem;
-      color: #1a1a1a;
-      background: transparent;
-      border: none;
-      outline: none;
+    .reads {
+      border-top: 3px double var(--rule);
+      padding-top: 1.7rem;
     }
 
-    #agent-input input::placeholder {
-      color: #999;
+    .reads h2 {
+      margin-bottom: 1.1rem;
+      color: var(--red);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
     }
 
-    #agent-input .key-btn {
-      font-size: 0.75rem;
-      color: #999;
-      background: none;
-      border: 1px solid #ddd;
-      padding: 0.25rem 0.5rem;
-      border-radius: 3px;
-      cursor: pointer;
+    .reading-list {
+      list-style: none;
     }
 
-    #agent-input .key-btn:hover {
-      border-color: #bbb;
-      color: #666;
+    .reading-list li {
+      border-top: 1px solid var(--rule);
     }
 
-    #agent-input .key-btn.set {
-      border-color: #9c9;
-      color: #696;
+    .reading-list li:last-child {
+      border-bottom: 1px solid var(--rule);
     }
 
-    #log {
-      margin-top: 1.5rem;
-      display: none;
+    .reading-list a {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1.5rem;
+      align-items: baseline;
+      padding: 0.72rem 0;
+      color: inherit;
+      text-decoration: none;
     }
 
-    #log.visible {
-      display: block;
+    .reading-list a:hover .reading-title {
+      color: var(--blue);
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
     }
 
-    .turn {
-      border-left: 2px solid #e0e0e0;
-      padding-left: 1rem;
-      margin: 1.5rem 0;
+    .reading-title {
+      grid-column: 1;
+      font-size: 0.98rem;
+      line-height: 1.45;
     }
 
-    .turn-user {
-      color: #666;
-      margin-bottom: 0.75rem;
+    .reading-meta {
+      grid-column: 2;
+      grid-row: 1;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.68rem;
+      white-space: nowrap;
     }
 
-    .turn-code {
-      margin: 0.75rem 0;
-    }
-
-    .turn-code summary {
-      font-size: 0.8rem;
-      color: #999;
-      cursor: pointer;
-    }
-
-    .turn-code pre {
-      background: #f4f4f4;
-      border-radius: 4px;
-      padding: 0.75rem;
-      margin-top: 0.5rem;
-      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-      font-size: 0.8rem;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .turn-response {
-      color: #333;
-    }
-
-    .turn-response a {
-      color: #0066cc;
-    }
-
-    .turn-response ul, .turn-response ol {
-      margin: 0.5rem 0 0.5rem 1.5rem;
-    }
-
-    .turn-response li {
-      margin: 0.25rem 0;
-    }
-
-    .turn-response code {
-      background: #f4f4f4;
-      padding: 0.1rem 0.3rem;
-      border-radius: 3px;
-      font-size: 0.9em;
-    }
-
-    .turn-error {
-      color: #c44;
-    }
-
-    @media (max-width: 480px) {
-      h1 { font-size: 2rem; }
-      .tagline, .bio { font-size: 1rem; }
+    @media (max-width: 620px) {
+      body { padding-inline: 1.1rem; }
+      .masthead { align-items: flex-start; flex-direction: column; gap: 0.8rem; }
+      h1 { font-size: 1.65rem; }
+      .bio { padding: 2.5rem 0 2.8rem; font-size: 1.05rem; }
+      .reading-list a { grid-template-columns: 1fr; gap: 0.18rem; padding: 0.85rem 0; }
+      .reading-meta { grid-column: 1; grid-row: 2; white-space: normal; }
     }
   </style>
 </head>
 <body>
   <main>
-    <h1>Parthav Shergill</h1>
-    <p class="tagline">Founding Engineer · San Francisco Bay Area</p>
+    <header class="masthead">
+      <h1>Parthav Shergill</h1>
+      <nav class="links" aria-label="Elsewhere">
+        <a href="https://github.com/parthavshergill">github</a>
+        <a href="https://x.com/parthavshergill">x</a>
+        <a href="https://www.linkedin.com/in/parthav-shergill/">linkedin</a>
+      </nav>
+    </header>
+
     <p class="bio">
-      Building agent architectures for long context problems. Interested in systems that reason across large contexts, distributed computing meets AI, and how agents can work together to solve complex problems.
+      I build tools and infrastructure that help people and AI systems solve problems they could not solve alone. At <a href="https://effectiveailabs.com/">Effective AI</a>, I focus on RSL, an internal language and compiler that enables agents to design commercial insurance pricing algorithms, and work on core platform infrastructure, including our cloud agent runtime and multi-agent harness.
     </p>
-    <div class="links">
-      <a href="https://x.com/parthavshergill">X</a>
-      <a href="https://github.com/parthavshergill">GitHub</a>
-      <a href="https://www.linkedin.com/in/parthav-shergill/">LinkedIn</a>
-    </div>
-
-    <div id="agent">
-      <div id="agent-input">
-        <span style="color:#999">→</span>
-        <input type="text" id="prompt" placeholder="modify this page..." autofocus>
-        <button class="key-btn" id="key-btn" onclick="setKey()">key</button>
-      </div>
-      <div id="log"></div>
-    </div>
+    <section class="reads" aria-labelledby="reads-title">
+      <h2 id="reads-title">#interesting-reads</h2>
+      <!-- data-added controls newest-first ordering and is intentionally not displayed. -->
+      <ol class="reading-list">
+        <li data-added="2026-08-14"><a href="https://bartoszmilewski.com/category/category-theory/"><span class="reading-title">Category Theory for Programmers</span><span class="reading-meta">Bartosz Milewski · PL</span></a></li>
+        <li data-added="2026-07-21"><a href="https://arxiv.org/abs/cs/9401101"><span class="reading-title">Teleo-Reactive Programs</span><span class="reading-meta">Nils Nilsson · agents</span></a></li>
+        <li data-added="2026-08-15"><a href="https://ivan-gavran.github.io/0-social-processes-paper"><span class="reading-title">The Case Against Formal Verification, 50 Years Later</span><span class="reading-meta">Ivan Gavran · formal methods</span></a></li>
+        <li data-added="2026-07-25"><a href="https://leodemoura.github.io/static/floc26/"><span class="reading-title">Lean at FLoC 2026</span><span class="reading-meta">Leonardo de Moura · theorem proving</span></a></li>
+        <li data-added="2026-08-05"><a href="https://aramesh10.github.io/ml-compilers-primer/index.html"><span class="reading-title">A Primer to ML Compilers</span><span class="reading-meta">Aditya Ramesh · compilers</span></a></li>
+        <li data-added="2026-07-27"><a href="https://docs.pytorch.org/devlogs/compiler/2026-07-25-pytorch-a-reference-language/"><span class="reading-title">PyTorch: A Reference Language</span><span class="reading-meta">Edward Z. Yang · ML compilers</span></a></li>
+        <li data-added="2026-08-28"><a href="https://horace.io/brrr_intro.html"><span class="reading-title">Making Deep Learning Go Brrrr From First Principles</span><span class="reading-meta">Horace He · performance</span></a></li>
+        <li data-added="2026-07-25"><a href="https://escholarship.org/uc/item/5tz795vq"><span class="reading-title">The Roofline Model</span><span class="reading-meta">Williams et al. · performance</span></a></li>
+        <li data-added="2026-07-25"><a href="https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html"><span class="reading-title">What Every Computer Scientist Should Know About Floating-Point Arithmetic</span><span class="reading-meta">David Goldberg · numerics</span></a></li>
+        <li data-added="2026-08-21"><a href="https://danluu.com/perf-opt/"><span class="reading-title">There’s No Reason for Software to Be Slow Anymore</span><span class="reading-meta">Dan Luu · performance</span></a></li>
+        <li data-added="2026-01-21"><a href="https://blog.wilsonl.in/search-engine/"><span class="reading-title">Building a Search Engine from Scratch</span><span class="reading-meta">Wilson Lin · systems</span></a></li>
+        <li data-added="2026-08-18"><a href="https://linear.app/now/rebuilding-delta-sync-read-path"><span class="reading-title">Rebuilding Linear’s Delta-Sync Read Path</span><span class="reading-meta">Linear · distributed systems</span></a></li>
+        <li data-added="2026-06-14"><a href="https://www.linkedin.com/blog/engineering/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying"><span class="reading-title">The Log: What Every Software Engineer Should Know About Real-Time Data</span><span class="reading-meta">Jay Kreps · distributed systems</span></a></li>
+        <li data-added="2026-06-16"><a href="https://planetscale.com/blog/the-feedback-loops-behind-kubernetes"><span class="reading-title">The Feedback Loops Behind Kubernetes</span><span class="reading-meta">Fatih Arslan · control systems</span></a></li>
+        <li data-added="2026-08-24"><a href="https://gwern.net/doc/philosophy/epistemology/1964-platt.pdf"><span class="reading-title">Strong Inference</span><span class="reading-meta">John R. Platt · scientific method</span></a></li>
+        <li data-added="2026-08-23"><a href="https://jax-ml.github.io/scaling-book/"><span class="reading-title">How to Scale Your Model</span><span class="reading-meta">Austin et al. · ML systems</span></a></li>
+        <li data-added="2026-07-06"><a href="https://modal.com/llm-almanac/spec-dec-roofline"><span class="reading-title">Speculative-Decoding Roofline</span><span class="reading-meta">Modal · inference</span></a></li>
+        <li data-added="2026-08-28"><a href="https://theconsensus.dev/p/2026/06/27/the-feature-in-oxcaml-more-languages-should-steal.html"><span class="reading-title">The Feature in OxCaml That More Languages Should Steal</span><span class="reading-meta">Phil Eaton · programming languages</span></a></li>
+      </ol>
+    </section>
   </main>
-
-  <script src="https://cdn.jsdelivr.net/npm/snarkdown@2.0.0/dist/snarkdown.umd.js"></script>
   <script>
-    const PROXY_URL = 'https://claude-proxy.parthavshergill.workers.dev';
-    let apiKey = localStorage.getItem('anthropic_key') || '';
+    const readingList = document.querySelector('.reading-list');
+    const readings = [...readingList.children];
 
-    if (apiKey) document.getElementById('key-btn').classList.add('set');
-
-    function setKey() {
-      const key = prompt('Enter Anthropic API key:', apiKey);
-      if (key !== null) {
-        apiKey = key;
-        localStorage.setItem('anthropic_key', key);
-        document.getElementById('key-btn').classList.toggle('set', !!key);
-      }
-    }
-
-    function getPageContext() {
-      const clone = document.documentElement.cloneNode(true);
-      clone.querySelector('#agent')?.remove();
-      clone.querySelector('script')?.remove();
-      return clone.outerHTML;
-    }
-
-    async function callClaude(messages) {
-      const res = await fetch(PROXY_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          key: apiKey,
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 4096,
-          system: `You modify this webpage by executing JavaScript.
-
-Current HTML:
-${getPageContext()}
-
-You have one tool: execute_js. Use it to modify the DOM.
-
-Response format:
-- First, call execute_js with your code
-- Then respond briefly confirming what you did
-- You can use markdown: **bold**, [links](url), and lists`,
-          messages,
-          tools: [{
-            name: 'execute_js',
-            description: 'Execute JavaScript to modify the page DOM',
-            input_schema: {
-              type: 'object',
-              properties: {
-                code: { type: 'string', description: 'JavaScript code to execute' }
-              },
-              required: ['code']
-            }
-          }]
-        })
+    readings
+      .sort((a, b) => b.dataset.added.localeCompare(a.dataset.added))
+      .forEach((reading) => {
+        readingList.append(reading);
       });
-      return res.json();
-    }
-
-    async function run(userPrompt) {
-      const isLocal = PROXY_URL.includes('localhost');
-      if (!apiKey && !isLocal) {
-        setKey();
-        if (!apiKey) return;
-      }
-
-      const logEl = document.getElementById('log');
-      logEl.classList.add('visible');
-
-      // Create turn container (prepend so newest is on top)
-      const turn = document.createElement('div');
-      turn.className = 'turn';
-      logEl.prepend(turn);
-
-      // User message
-      const userMsg = document.createElement('div');
-      userMsg.className = 'turn-user';
-      userMsg.textContent = userPrompt;
-      turn.appendChild(userMsg);
-
-      const messages = [{ role: 'user', content: userPrompt }];
-      let allCode = [];
-
-      while (true) {
-        const response = await callClaude(messages);
-
-        if (response.error) {
-          const errMsg = document.createElement('div');
-          errMsg.className = 'turn-error';
-          errMsg.textContent = response.error.message || response.error;
-          turn.appendChild(errMsg);
-          break;
-        }
-
-        let hasToolUse = false;
-        const toolResults = [];
-        let agentText = '';
-
-        for (const block of response.content) {
-          if (block.type === 'text' && block.text) {
-            agentText += block.text;
-          }
-
-          if (block.type === 'tool_use' && block.name === 'execute_js') {
-            hasToolUse = true;
-            const code = block.input.code;
-            allCode.push(code);
-
-            let result;
-            try {
-              result = eval(code);
-            } catch (e) {
-              result = `Error: ${e.message}`;
-            }
-
-            toolResults.push({
-              type: 'tool_result',
-              tool_use_id: block.id,
-              content: String(result ?? 'ok')
-            });
-          }
-        }
-
-        if (!hasToolUse) {
-          // Collapsed code
-          if (allCode.length > 0) {
-            const details = document.createElement('details');
-            details.className = 'turn-code';
-            details.innerHTML = `<summary>code</summary><pre>${allCode.join('\n\n')}</pre>`;
-            turn.appendChild(details);
-          }
-
-          // Agent response
-          if (agentText.trim()) {
-            const agentMsg = document.createElement('div');
-            agentMsg.className = 'turn-response';
-            agentMsg.innerHTML = snarkdown(agentText.trim());
-            turn.appendChild(agentMsg);
-          }
-          break;
-        }
-
-        messages.push({ role: 'assistant', content: response.content });
-        messages.push({ role: 'user', content: toolResults });
-      }
-
-    }
-
-    document.getElementById('prompt').addEventListener('keydown', async (e) => {
-      if (e.key === 'Enter' && e.target.value.trim()) {
-        const prompt = e.target.value.trim();
-        e.target.value = '';
-        await run(prompt);
-      }
-    });
   </script>
 </body>
 </html>
