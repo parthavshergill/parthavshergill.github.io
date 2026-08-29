@@ -191,7 +191,7 @@
 
     <p>I recently got to build a compiler for a domain-specific language at work. At <a href="https://effectiveailabs.com/">Effective</a>, one product we offer is the ability to design, host, and reverse-engineer competitor pricing algorithms from their rate filings. I wrote a little about our initial experiments with this idea <a href="https://effectiveailabs.com/blog/self-verifying-domain-agents">here</a>.</p>
 
-    <p>The gist of it is that rating algorithms, or raters, compute an insurance premium from a large number of factors and input values. In practice, a rater is a giant deterministic program made from table lookups, arithmetic, branches, and aggregation over objects. These programs are valuable because they are the pricing function for how insurance carriers operate in a market.</p>
+    <p>The gist of it is that rating algorithms, or raters, compute an insurance premium from a large number of factors and input values. In practice, a rater is a giant deterministic program made from table lookups, arithmetic, branches, and aggregation over objects. These programs are valuable because they encode how an insurance carrier prices risk in a market.</p>
 
     <p>A deployed rater should behave like a total function over its declared input type: every valid input should produce either a rating result or an explicit rejection. This gives us some useful constraints for a compiled, executable DSL (Rating Specification Language or RSL) that seems easier for agents to reason about than a more flexible language like Python or TypeScript, probably because agents do very well at writing code until a compiler stops yelling at them.</p>
 
