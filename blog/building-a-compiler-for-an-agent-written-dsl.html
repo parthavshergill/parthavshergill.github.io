@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Building a compiler for an agent-written DSL | Parthav Shergill</title>
+  <meta name="description" content="Notes on the constraints and design of a compiler for an agent-written insurance rating language.">
+  <style>
+    * { box-sizing: border-box; }
+
+    :root {
+      --paper: #f2f0e6;
+      --ink: #24231f;
+      --muted: #6b6961;
+      --rule: #aaa79c;
+      --wash: rgba(36, 35, 31, 0.055);
+      --soft-rule: rgba(36, 35, 31, 0.22);
+    }
+
+    html { background: var(--paper); }
+
+    body {
+      margin: 0;
+      padding: 0 1.4rem 5rem;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 18px;
+      line-height: 1.72;
+      text-rendering: optimizeLegibility;
+    }
+
+    .site-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 2rem;
+      width: min(100%, 800px);
+      min-height: 3.65rem;
+      margin: 0 auto;
+      padding: 1.2rem 0 0.9rem;
+      border-bottom: 2px solid var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .brand {
+      color: var(--ink);
+      font-size: 0.86rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .site-nav {
+      display: flex;
+      gap: 1.25rem;
+      font-size: 0.7rem;
+    }
+
+    .site-nav a { color: var(--muted); text-decoration: none; }
+    .site-nav a:hover,
+    .site-nav a:focus-visible { text-decoration: underline; text-underline-offset: 0.22em; }
+
+    article {
+      width: min(100%, 720px);
+      margin: 0 auto;
+      padding-top: 4.8rem;
+    }
+
+    h1,
+    h2 {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      letter-spacing: -0.035em;
+    }
+
+    h1 {
+      max-width: 690px;
+      margin: 0 0 3rem;
+      font-size: clamp(2rem, 6vw, 3.65rem);
+      font-weight: 600;
+      line-height: 1.08;
+      text-wrap: balance;
+    }
+
+    h2 {
+      margin: 4.2rem 0 1.35rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--ink);
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    p { margin: 0 0 1.45rem; }
+
+    a {
+      color: inherit;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    li { margin: 0 0 0.9rem; padding-left: 0.4rem; }
+    li::marker { color: var(--muted); }
+
+    .comparison {
+      width: min(1080px, calc(100vw - 2.8rem));
+      margin: 3.5rem 0 3.5rem 50%;
+      transform: translateX(-50%);
+    }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .comparison-item {
+      min-width: 0;
+    }
+
+    .diagram-panel,
+    .monkey-panel {
+      min-width: 0;
+      aspect-ratio: 2 / 3;
+      background: transparent;
+      overflow: hidden;
+    }
+
+    .diagram-panel img,
+    .monkey-panel img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .diagram-panel img {
+      object-fit: cover;
+      object-position: center;
+      filter: grayscale(1) contrast(1.02);
+    }
+
+    .monkey-panel {
+      background: #dfded8;
+    }
+
+    .monkey-panel img {
+      object-position: center top;
+      filter: grayscale(1) contrast(0.94);
+    }
+
+    .comparison-caption {
+      margin-top: 0.75rem;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.68rem;
+      line-height: 1.4;
+      text-align: center;
+    }
+
+    @media (max-width: 720px) {
+      body { padding-inline: 1rem; font-size: 17px; }
+      .site-header { align-items: flex-start; gap: 1rem; }
+      .site-nav { gap: 0.85rem; font-size: 0.6rem; }
+      article { padding-top: 3.4rem; }
+      h1 { margin-bottom: 2.4rem; }
+      .comparison { width: 100%; margin-block: 2.8rem; }
+      .comparison-grid { grid-template-columns: 1fr; }
+      .diagram-panel,
+      .monkey-panel { aspect-ratio: 2 / 3; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="../index.html">parthav-shergill</a>
+    <nav class="site-nav" aria-label="Elsewhere">
+      <a href="https://github.com/parthavshergill">github</a>
+      <a href="https://x.com/parthavshergill">x</a>
+      <a href="https://www.linkedin.com/in/parthav-shergill/">linkedin</a>
+    </nav>
+  </header>
+
+  <article>
+    <h1>Building a compiler for an agent-written DSL</h1>
+
+    <p>I recently got to build a compiler for a domain-specific language at work. At <a href="https://effectiveailabs.com/">Effective</a>, one product we offer is the ability to design, host, and reverse-engineer competitor pricing algorithms from their rate filings. I wrote a little about our initial experiments with this idea <a href="https://effectiveailabs.com/blog/self-verifying-domain-agents">here</a>.</p>
+
+    <p>The gist of it is that rating algorithms, or raters, compute an insurance premium from a large number of factors and input values. In practice, a rater is a giant deterministic program made from table lookups, arithmetic, branches, and aggregation over objects. These programs are valuable because they are the pricing function for how insurance carriers operate in a market.</p>
+
+    <p>A deployed rater should behave like a total function over its declared input type: every valid input should produce either a rating result or an explicit rejection. This gives us some useful constraints for a compiled, executable DSL (Rating Specification Language or RSL) that seems easier for agents to reason about than a more flexible language like Python or TypeScript, probably because agents do very well at writing code until a compiler stops yelling at them.</p>
+
+    <figure class="comparison" aria-labelledby="compiler-loop-caption">
+      <div class="comparison-grid">
+        <div class="comparison-item">
+          <div class="diagram-panel">
+            <img src="../assets/images/rslc-agent-loop-v2.png" alt="Filing and tables flow to an agent. The agent writes RSL. The RSL compiler returns diagnostics to the agent and emits an executable rater bundle.">
+          </div>
+        </div>
+
+        <div class="comparison-item">
+          <div class="monkey-panel">
+            <img src="../assets/images/infinite-monkey-theorem-mobile.png" alt="A screenshot explaining the infinite monkey theorem, with a chimpanzee seated at a typewriter.">
+          </div>
+        </div>
+      </div>
+      <figcaption id="compiler-loop-caption" class="comparison-caption">more alike than different</figcaption>
+    </figure>
+
+    <p>Eventually, either models will get good enough to one-shot these programs in any programming language from a universe of PDF and Excel data and we can throw out RSL and its compiler, or RSL will become valuable enough for us to train a model that is particularly good at writing it.</p>
+
+    <h2>Why write a compiler?</h2>
+
+    <p>We needed a few things from a product standpoint:</p>
+
+    <ul>
+      <li>We offer the ability to export raters as Python or Excel, and need JSON to power some UIs.</li>
+      <li>We need to introspect on the program so the agent has a richer set of debugging tools than an out-of-the-box compiler provides.</li>
+      <li>A constrained DSL reduces the review surface. More flexible languages gave agents too many escape hatches for setting default values, implementing standard operations in inefficient ways, and wasting tokens on irrelevant boilerplate.</li>
+      <li>A constrained DSL lets us add things that would be annoying for humans to maintain manually, like required citations to source documents, explicit rating outcomes, and proofs that ordinary table lookups are total over their declared domains (which lets us catch some table extraction errors at compile time).</li>
+    </ul>
+
+    <h2>What properties do we want?</h2>
+
+    <p>At a high level, we want the compiler to make it hard to represent a rater that is ambiguous, incomplete, or impossible to inspect.</p>
+
+    <ul>
+      <li><strong>One source of truth for semantics and backend parity.</strong> The native evaluator, Python export, Excel export, and JSON representation should all be projections of the same typed program, rather than separate implementations of what RSL means.</li>
+      <li><strong>The standard properties of a total function.</strong> For any valid input, the rater should produce either a rating result or an explicit rejection, and the same program, tables, and inputs should always produce the same result.</li>
+      <li><strong>Total lookups.</strong> If a program reads from an ordinary rating table, every possible runtime key should select exactly one row under that table's matching rules.</li>
+      <li><strong>Static errors where possible.</strong> Missing references, incompatible types, malformed tables, and other structural problems should fail at compile time rather than turn into strange premiums at runtime.</li>
+      <li><strong>Introspection.</strong> The compiler should be able to answer questions like: what does this value depend on, which source filing did this calculation come from, what inputs can reach this branch, and what table does this lookup use?</li>
+    </ul>
+  </article>
+</body>
+</html>

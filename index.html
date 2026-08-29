@@ -329,15 +329,21 @@
       text-underline-offset: 0.18em;
     }
 
+    .blog-section {
+      flex: none;
+      padding-top: 2.8rem;
+    }
+
     .reading-section {
       position: relative;
       display: flex;
       flex: 1;
       flex-direction: column;
       min-height: 0;
-      padding-top: 3rem;
+      padding-top: 2.7rem;
     }
 
+    .blog-section h1,
     .reading-section h1 {
       margin-bottom: 1.25rem;
       padding-bottom: 0.7rem;
@@ -347,6 +353,49 @@
       font-size: 0.9rem;
       font-weight: 700;
       letter-spacing: -0.02em;
+    }
+
+    .blog-list {
+      list-style: none;
+    }
+
+    .blog-list li {
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .blog-list a {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 1.75rem;
+      align-items: baseline;
+      padding: 0.86rem 0.55rem;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .blog-list a:hover,
+    .blog-list a:focus-visible {
+      background: var(--wash);
+    }
+
+    .blog-list a:hover .blog-title,
+    .blog-list a:focus-visible .blog-title {
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.18em;
+    }
+
+    .blog-title {
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+
+    .blog-meta {
+      color: var(--muted);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 0.66rem;
+      letter-spacing: 0.015em;
+      white-space: nowrap;
     }
 
     .reading-list {
@@ -425,6 +474,9 @@
       body { padding-inline: 1rem; }
       .topbar { align-items: flex-start; gap: 1.25rem; }
       .socials { gap: 0.85rem; font-size: 0.6rem; }
+      .blog-section { padding-top: 2.35rem; }
+      .blog-list a { grid-template-columns: 1fr; gap: 0.2rem; padding-block: 0.9rem; }
+      .blog-meta { white-space: normal; }
       .reading-section { padding-top: 2.35rem; }
       .reading-list a { grid-template-columns: 1fr; gap: 0.2rem; padding-block: 0.9rem; }
       .reading-meta { white-space: normal; }
@@ -445,6 +497,18 @@
     <p class="bio">
       I build tools and infrastructure that help people and AI systems solve problems they could not solve alone. At <a href="https://effectiveailabs.com/">Effective AI</a>, I focus on RSL, an internal language and compiler that enables agents to design commercial insurance pricing algorithms, and work on core platform infrastructure, including our cloud agent runtime and multi-agent harness.
     </p>
+
+    <section class="blog-section" aria-labelledby="blog-title">
+      <h1 id="blog-title">blog</h1>
+      <ul class="blog-list">
+        <li>
+          <a href="blog/building-a-compiler-for-an-agent-written-dsl.html">
+            <span class="blog-title">Building a compiler for an agent-written DSL</span>
+            <span class="blog-meta">April 2026</span>
+          </a>
+        </li>
+      </ul>
+    </section>
 
     <section class="reading-section" aria-labelledby="reading-list-title">
       <h1 id="reading-list-title">reading-list</h1>
