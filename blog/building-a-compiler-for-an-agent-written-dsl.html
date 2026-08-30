@@ -163,6 +163,133 @@
       text-align: center;
     }
 
+    .rsl-demo {
+      margin: 2.6rem 0 3rem;
+      border: 1px solid var(--ink);
+      background: rgba(255, 255, 255, 0.13);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .demo-tabs,
+    .demo-commands {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;
+    }
+
+    .demo-tabs {
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .demo-tab,
+    .demo-command {
+      appearance: none;
+      border: 0;
+      border-right: 1px solid var(--soft-rule);
+      border-radius: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.67rem;
+      line-height: 1;
+      text-align: left;
+    }
+
+    .demo-tab {
+      padding: 0.8rem 0.95rem;
+    }
+
+    .demo-tab[aria-selected="true"] {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .demo-panel {
+      display: none;
+    }
+
+    .demo-panel.is-active {
+      display: block;
+    }
+
+    .demo-panel pre,
+    .demo-output {
+      margin: 0;
+      overflow: auto;
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.68rem;
+      line-height: 1.6;
+      tab-size: 2;
+    }
+
+    .demo-panel pre {
+      max-height: 33rem;
+      padding: 1.1rem;
+    }
+
+    .demo-terminal {
+      border-top: 1px solid var(--ink);
+    }
+
+    .demo-commands {
+      border-bottom: 1px solid var(--soft-rule);
+    }
+
+    .demo-command {
+      padding: 0.8rem 0.95rem;
+      color: var(--ink);
+    }
+
+    .demo-command:hover,
+    .demo-command:focus-visible {
+      background: var(--wash);
+    }
+
+    .demo-output {
+      min-height: 6.4rem;
+      padding: 1.1rem;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .section-turn {
+      margin-top: 4.2rem;
+    }
+
+    .rust-details {
+      margin: 2.8rem 0 3.8rem;
+      border-top: 1px solid var(--soft-rule);
+      border-bottom: 1px solid var(--soft-rule);
+    }
+
+    .rust-details summary {
+      padding: 0.9rem 0;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: inherit;
+      list-style: none;
+    }
+
+    .rust-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .rust-details summary::before {
+      content: "+ ";
+      color: var(--ink);
+    }
+
+    .rust-details[open] summary::before {
+      content: "− ";
+    }
+
+    .rust-details ul {
+      padding: 0.5rem 0 1.2rem 1.25rem;
+    }
+
     @media (max-width: 720px) {
       body { padding-inline: 1rem; font-size: 17px; }
       .site-header { align-items: flex-start; gap: 1rem; }
@@ -173,6 +300,8 @@
       .comparison-grid { grid-template-columns: 1fr; }
       .diagram-panel,
       .monkey-panel { aspect-ratio: 2 / 3; }
+      .demo-tab,
+      .demo-command { font-size: 0.61rem; }
     }
   </style>
 </head>
@@ -236,6 +365,157 @@
       <li>A constrained DSL reduces the review surface. More flexible languages gave agents too many escape hatches for setting default values, implementing standard operations in inefficient ways, and wasting tokens on irrelevant boilerplate.</li>
       <li>A compiled DSL lets us enforce things that would be annoying for humans to maintain manually, such as citations to source documents, explicit rating outcomes, and proofs that ordinary table lookups are total over their declared domains.</li>
     </ul>
+
+    <p class="section-turn">The version from the earlier blog post was a Python approximation of a compiler, which became quite limited as we encountered more complex production rating structures. Maintaining three implementations of RSL semantics in Python (the native evaluator, Python export, and Excel export) became a long loop of iterative fixes to keep them in sync as we added features to the language. More generally, agents were causing the codebase to tend toward a mess of stringly typed objects that undermined the guarantees we wanted the compiler to provide.</p>
+
+    <p>We wanted the RSL compiler to be easy for agents to maintain and extend, so I rewrote it in Rust with the help of Codex. Writing a compiler with agents was its own experiment, with its own creative verification mechanisms, and probably deserves a post of its own.</p>
+
+    <details class="rust-details">
+      <summary>Why Rust?</summary>
+      <ul>
+        <li>Compilation is a series of typed transformations. When implemented efficiently, each transformation establishes facts that the next stage can rely on. When we add an IR node for a new language feature or syntax, Rust’s algebraic data types and exhaustive pattern matching help ensure that every backend handles it or the project will not compile.</li>
+        <li>Rust makes data ownership choices such as moving, borrowing, and cloning explicit and compiler-checked. <a href="https://www.cs.cornell.edu/~asampson/blog/flattening.html">Most compilers use arenas</a> to store program data efficiently. An arena owns each node once, while compiler stages pass around references or small IDs instead of copying the underlying data. We apply the same principle to large RSL lookup tables with the help of Rust’s <code>Arc</code>: load each table snapshot into memory once, check totality against it, and reuse that exact snapshot across compiler stages.</li>
+        <li>We also want to take advantage of Rust’s ecosystem. <a href="https://pyo3.rs/main/">PyO3</a> gives us Python bindings, while <a href="https://rustxlsxwriter.github.io/"><code>rust_xlsxwriter</code></a> writes XLSX files directly without the memory overhead we encountered with <a href="https://openpyxl.readthedocs.io/en/stable/index.html"><code>openpyxl</code></a>. This let us move more logic into a compiler-checked core instead of duplicating it across backends. Also, <a href="https://github.com/aleph-alpha/ts-rs"><code>ts-rs</code></a> gives us a path toward TypeScript bindings, and libraries such as <a href="https://datafusion.apache.org/">DataFusion</a> may become useful as our table analysis grows more demanding.</li>
+        <li>The Rust compiler itself is a useful reference for how to structure a compiler. Since I was learning about both compiler design and Rust as I went, that was helpful.</li>
+      </ul>
+    </details>
+
+    <p class="section-turn">Ultimately, RSL looks like a small, statically typed spreadsheet language. It has entities with inputs and computed values, pure expressions, explicit relationships, and tables as first-class declarations. Here is a toy example:</p>
+
+    <section class="rsl-demo" aria-label="Interactive RSL compiler example">
+      <div class="demo-tabs" role="tablist" aria-label="Example files">
+        <button class="demo-tab" id="tab-rsl" type="button" role="tab" aria-selected="true" aria-controls="panel-rsl" data-panel="panel-rsl">rater.rsl</button>
+        <button class="demo-tab" id="tab-table" type="button" role="tab" aria-selected="false" aria-controls="panel-table" data-panel="panel-table">tables/AlarmFactors.csv</button>
+      </div>
+      <div class="demo-panel is-active" id="panel-rsl" role="tabpanel" aria-labelledby="tab-rsl"><pre>spec {
+  carrier: "Example Mutual",
+  state: CA,
+  product: "Homeowners",
+  effective_date: 2026-08-30,
+}
+
+Sources = {
+  manual: Source = {
+    path: "rate-manual.pdf",
+    title: "Homeowners Rate Manual"
+  }
+}
+
+Types = {
+  Factor = Num { precision: factor },
+  Premium = Num { precision: cents }
+}
+
+Tables = {
+  AlarmFactors [cite: manual:p12] :
+    (Policy.has_alarm) -&gt; { factor: Factor }
+    match: specific
+    columns: {
+      has_alarm: "has_alarm" [type: Bool],
+      factor: "factor" [type: Factor]
+    }
+}
+
+Entities = {
+  Policy = {
+    inputs {
+      base_premium: Premium,
+      has_alarm: Bool
+    }
+    requires {
+      self.base_premium &gt;= 500,
+      self.base_premium &lt;= 2000
+    }
+    step rating {
+      alarm_factor: Factor =
+        lookup!(AlarmFactors, self.has_alarm).factor,
+      written_premium: Premium =
+        self.base_premium * self.alarm_factor
+    }
+  }
+}
+
+RatingOutcomes = {
+  written_premium: Policy.written_premium
+}</pre></div>
+      <div class="demo-panel" id="panel-table" role="tabpanel" aria-labelledby="tab-table"><pre>has_alarm,factor
+true,0.95
+false,1.00</pre></div>
+      <div class="demo-terminal">
+        <div class="demo-commands" aria-label="Compiler commands">
+          <button class="demo-command" type="button" data-output="check">check valid</button>
+          <button class="demo-command" type="button" data-output="missing">missing table row</button>
+          <button class="demo-command" type="button" data-output="impossible">impossible input</button>
+          <button class="demo-command" type="button" data-output="sample">sample inputs</button>
+        </div>
+        <pre class="demo-output" aria-live="polite">Select a command to run it against the example bundle.</pre>
+      </div>
+    </section>
+
+    <p>Two of the more unusual features of <code>rslc</code>, the compiler’s CLI, are:</p>
+
+    <ul>
+      <li><code>rslc check</code> loads the tables in a complete rater bundle and proves that every valid runtime key resolves unambiguously to a value under the table’s matching rules. This needs to be fast because agents run it as they write RSL files, allowing us to catch possible table-extraction errors early.</li>
+      <li><code>rslc inputs sample</code> constructs valid inputs from the domain described by the program’s types, ranges, entity relationships, and constraints. The same input-contract machinery can generate targeted invalid inputs through the compiler API. Both paths need to be fast enough to generate large batches that we can run through the rater to sanity-check premium ranges and rejection messages.</li>
+    </ul>
+
   </article>
+  <script>
+    const demoTabs = document.querySelectorAll('.demo-tab');
+    const demoPanels = document.querySelectorAll('.demo-panel');
+    const demoOutput = document.querySelector('.demo-output');
+    const rslPanel = document.querySelector('#panel-rsl pre');
+    const tablePanel = document.querySelector('#panel-table pre');
+    const validRsl = rslPanel.textContent;
+    const validTable = tablePanel.textContent;
+    const commandOutputs = {
+      check: {
+        command: 'rslc check rater.rsl',
+        result: 'PASS rater.rsl (strict)'
+      },
+      missing: {
+        command: 'rslc check rater.rsl',
+        result: 'FAIL rater.rsl (strict)\nerror: invariant runner: config: E-LOOKUP-TOTAL: table `AlarmFactors`: incomplete coverage for keys [false]'
+      },
+      impossible: {
+        command: 'rslc check rater.rsl',
+        result: 'FAIL rater.rsl (strict)\nerror: E-INPUT-GENERATE: input contract has no valid witness: solver proved the declared constraints are unsatisfiable'
+      },
+      sample: {
+        command: 'rslc inputs sample rater.rsl --n 2 --seed 7',
+        result: 'Generated 2 valid inputs from rater.rsl\n{"instances": [{"entity": "Policy", "name": "policy_1", "values": {"base_premium": 2000.0, "has_alarm": false}}]}\n{"instances": [{"entity": "Policy", "name": "policy_1", "values": {"base_premium": 500.0, "has_alarm": false}}]}'
+      }
+    };
+
+    const showPanel = (panelId) => {
+      demoTabs.forEach((item) => item.setAttribute('aria-selected', String(item.dataset.panel === panelId)));
+      demoPanels.forEach((panel) => panel.classList.toggle('is-active', panel.id === panelId));
+    };
+
+    demoTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        showPanel(tab.dataset.panel);
+      });
+    });
+
+    document.querySelectorAll('.demo-command').forEach((button) => {
+      button.addEventListener('click', () => {
+        const selected = button.dataset.output;
+        const output = commandOutputs[selected];
+        rslPanel.textContent = validRsl;
+        tablePanel.textContent = validTable;
+
+        if (selected === 'missing') {
+          tablePanel.textContent = 'has_alarm,factor\ntrue,0.95';
+          showPanel('panel-table');
+        } else if (selected === 'impossible') {
+          rslPanel.textContent = validRsl.replace('self.base_premium >= 500', 'self.base_premium >= 2500');
+          showPanel('panel-rsl');
+        }
+
+        demoOutput.textContent = `$ ${output.command}\n${output.result}`;
+      });
+    });
+  </script>
 </body>
 </html>
