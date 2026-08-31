@@ -394,19 +394,22 @@
   effective_date: 2026-08-30,
 }
 
+# Source declarations make filing provenance part of the program.
 Sources = {
   manual: Source = {
-    path: "rate-manual.pdf",
+    path: "sources/rate-manual.pdf",
     title: "Homeowners Rate Manual"
   }
 }
 
 Types = {
+  # Domain types carry their own numeric precision.
   Factor = Num { precision: factor },
   Premium = Num { precision: cents }
 }
 
 Tables = {
+  # The table is tied to the page it was extracted from.
   AlarmFactors [cite: manual:p12] :
     (Policy.has_alarm) -&gt; { factor: Factor }
     match: specific
@@ -419,22 +422,30 @@ Tables = {
 Entities = {
   Policy = {
     inputs {
-      base_premium: Premium,
-      has_alarm: Bool
+      base_premium: Premium [cite: manual:p10],
+      has_alarm: Bool,
+      eligible: Bool
     }
+    # Constraints define the valid input domain rslc can sample.
     requires {
       self.base_premium &gt;= 500,
       self.base_premium &lt;= 2000
     }
-    step rating {
+    step rating [cite: manual:p12] {
+      # lookup! must resolve to exactly one row for every valid key.
       alarm_factor: Factor =
         lookup!(AlarmFactors, self.has_alarm).factor,
+      # Every valid input produces a premium or an explicit rejection.
       written_premium: Premium =
-        self.base_premium * self.alarm_factor
+        if self.eligible then
+          self.base_premium * self.alarm_factor
+        else
+          reject("INELIGIBLE", "Outside underwriting appetite")
     }
   }
 }
 
+# Only declared outcomes become part of the published interface.
 RatingOutcomes = {
   written_premium: Policy.written_premium
 }</pre></div>
@@ -483,7 +494,7 @@ false,1.00</pre></div>
       },
       sample: {
         command: 'rslc inputs sample rater.rsl --n 2 --seed 7',
-        result: 'Generated 2 valid inputs from rater.rsl\n{"instances": [{"entity": "Policy", "name": "policy_1", "values": {"base_premium": 2000.0, "has_alarm": false}}]}\n{"instances": [{"entity": "Policy", "name": "policy_1", "values": {"base_premium": 500.0, "has_alarm": false}}]}'
+        result: 'Generated 2 valid inputs from rater.rsl\n{"instances": [{"entity": "Policy", "name": "policy_1", "values": {"base_premium": 2000.0, "eligible": false, "has_alarm": false}}]}\n{"instances": [{"entity": "Policy", "name": "policy_1", "values": {"base_premium": 500.0, "eligible": false, "has_alarm": false}}]}'
       }
     };
 
