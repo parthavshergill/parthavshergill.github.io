@@ -132,13 +132,22 @@
   <article>
     <h1>Deriving a system from its wall-time formula</h1>
 
-    <p>At <a href="https://effectiveailabs.com/">Effective</a>, we build and host insurance rating algorithms. A rater maps a risk to a premium or an explicit rejection. One call is an ordinary API request; enough carefully chosen calls reveal how a carrier prices a market.</p>
+    <p>At <a href="https://effectiveailabs.com/">Effective</a>, we build and host insurance rating algorithms. A rater maps a risk to a premium or an explicit rejection. Calling one is an ordinary API request; calling it over a carefully chosen input space reveals how a carrier prices a market.</p>
 
-    <p>Our deployed raters are generated Python programs. This design only assumes that loading a rater costs enough to amortize over many inputs, so it also applies to a future native RSL runtime.</p>
+    <p>In <a href="building-a-compiler-for-an-agent-written-dsl.html">Designing a compiler for an agent-written DSL</a>, I wrote about giving agents fast, structured feedback while they build raters. Compilation closes one feedback loop. Once the rater runs, the agent needs another: generate inputs, evaluate the program, inspect the results, and decide what to try next.</p>
 
-    <p>A batch of <code>N</code> inputs over <code>R</code> raters produces <code>NR</code> ratings. <code>N = 100,000, R = 1</code> maps one pricing surface; <code>N = 10,000, R = 10</code> compares ten carriers. Either way, throughput determines whether the result can inform another experiment in the same session.</p>
+    <p>Humans eventually get diminishing returns from faster execution because the results arrive faster than they can interpret them. An agent can aggregate the results and start the next experiment, so the amount of useful analysis it can do stays coupled to the latency of that loop.</p>
 
-    <p>For the measurements below, we treat the deliberately naive execution path (calling the single-input API 100,000 times sequentially) as the <code>1×</code> baseline.</p>
+    <div class="equation">analysis cycles per session
+    ≈ session duration / (t_model + t_system)</div>
+
+    <p>Each cycle spends some time waiting on the model (<code>t_model</code>) and some time waiting on the systems it calls (<code>t_system</code>). We use frontier models through an API, so <code>t_model</code> is mostly outside our control. This post is about reducing a large component of <code>t_system</code>: running a rating algorithm over enough inputs to answer a useful question.</p>
+
+    <p>Our deployed raters are currently generated Python programs. The design only assumes that loading a rater costs enough to amortize over many inputs, so it also applies to a future native RSL runtime.</p>
+
+    <p>A batch of <code>N</code> inputs over <code>R</code> raters produces <code>NR</code> ratings. <code>N = 100,000, R = 1</code> maps one pricing surface; <code>N = 10,000, R = 10</code> compares ten carriers.</p>
+
+    <p>For the measurements below, we treat the deliberately naive execution path—calling the single-input API 100,000 times sequentially—as the <code>1×</code> baseline.</p>
 
     <figure class="runtime-figure is-visible" data-stage="0">
       <div class="plot-title">100,000 ratings <span class="plot-stage">— cumulative speedup</span></div>
@@ -262,9 +271,9 @@ fleet memory     = O(PW)</div>
     <p><code>25,000</code> base risks with four controlled variations produce <code>100,000</code> points on one pricing surface. We can measure marginal premium effects, find discontinuities, check monotonicity, and locate interactions between inputs.</p>
     <p><code>10,000</code> risks across ten carriers produce <code>100,000</code> premiums. We can compare appetite, find the cheapest carrier by segment, and locate small changes that reverse carrier rankings.</p>
     <p>At baseline, each question becomes a background job and encourages us to choose a few representative examples. At <code>17×</code> the throughput, the same workload fits inside an interactive loop.</p>
-    <p>Humans may become the bottleneck when interpreting this much data. An agent can aggregate the result, identify interesting regions, generate the next inputs, and continue the experiment:</p>
+    <p>For a human, 100,000 premiums can arrive faster than they can decide what the results mean. An agent can aggregate them, identify interesting regions, generate the next inputs, and continue the experiment. While rating remains the largest component of <code>t_system</code>:</p>
     <div class="equation">analysis volume per session ∝ rating throughput</div>
-    <p>Higher throughput lets the agent test more hypotheses per session. Bounded execution makes that throughput predictable.</p>
+    <p>The compiler gives an agent fast structural feedback while it writes a rater. This system gives it fast empirical feedback once the rater runs. Both increase how much useful work fits inside one agent loop.</p>
     <hr class="end-rule">
   </article>
 
