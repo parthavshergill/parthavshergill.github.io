@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The perks of having a wall-time formula | Parthav Shergill</title>
+  <meta name="description" content="How fixed-size partitions, immutable artifacts, durable workflows, and bounded workers make large rating experiments practical.">
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --paper: #f2f0e6;
+      --ink: #24231f;
+      --muted: #6b6961;
+      --rule: #aaa79c;
+      --wash: rgba(36, 35, 31, 0.055);
+      --soft-rule: rgba(36, 35, 31, 0.22);
+    }
+    html { background: var(--paper); }
+    body {
+      margin: 0;
+      padding: 0 1.4rem 5rem;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 18px;
+      line-height: 1.72;
+      text-rendering: optimizeLegibility;
+    }
+    .site-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 2rem;
+      width: min(100%, 800px);
+      min-height: 3.65rem;
+      margin: 0 auto;
+      padding: 1.2rem 0 0.9rem;
+      border-bottom: 2px solid var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .brand { color: var(--ink); font-size: 0.86rem; font-weight: 700; letter-spacing: -0.02em; text-decoration: none; }
+    .site-nav { display: flex; gap: 1.25rem; font-size: 0.7rem; }
+    .site-nav a { color: var(--muted); text-decoration: none; }
+    .site-nav a:hover, .site-nav a:focus-visible { text-decoration: underline; text-underline-offset: 0.22em; }
+    article { width: min(100%, 720px); margin: 0 auto; padding-top: 4.8rem; }
+    h1, h2 { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; letter-spacing: -0.035em; }
+    h1 { max-width: 690px; margin: 0 0 3rem; font-size: clamp(2rem, 6vw, 3.65rem); font-weight: 600; line-height: 1.08; text-wrap: balance; }
+    h2 { margin: 4.2rem 0 1.35rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--ink); font-size: 1.05rem; font-weight: 700; }
+    p { margin: 0 0 1.45rem; }
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+    ul, ol { margin: 0; padding-left: 1.25rem; }
+    li { margin: 0 0 0.9rem; padding-left: 0.4rem; }
+    li::marker { color: var(--muted); }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.86em; }
+
+    .system-figure, .runtime-figure {
+      width: min(940px, calc(100vw - 2.8rem));
+      margin: 3.4rem 0 3.7rem 50%;
+      transform: translateX(-50%);
+    }
+    .system-figure svg, .runtime-figure svg { display: block; width: 100%; height: auto; }
+    figcaption {
+      margin-top: 0.8rem;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.68rem;
+      line-height: 1.45;
+      text-align: center;
+    }
+    .diagram-box { fill: rgba(255,255,255,0.12); stroke: var(--ink); stroke-width: 1.25; }
+    .diagram-soft { fill: var(--wash); stroke: var(--rule); stroke-width: 1; }
+    .diagram-line { fill: none; stroke: var(--ink); stroke-width: 1.25; }
+    .diagram-dash { fill: none; stroke: var(--rule); stroke-width: 1; stroke-dasharray: 5 5; }
+    .diagram-label { fill: var(--ink); font: 13px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .diagram-note { fill: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+    .runtime-figure { padding: 1.2rem 1.2rem 0.7rem; border: 1px solid var(--soft-rule); background: rgba(255,255,255,0.1); }
+    .plot-title { margin-bottom: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.72rem; font-weight: 700; }
+    .plot-stage { color: var(--muted); font-weight: 400; }
+    .plot-grid { stroke: var(--soft-rule); stroke-width: 1; }
+    .plot-axis { stroke: var(--ink); stroke-width: 1.25; }
+    .plot-path { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+    .plot-point { fill: var(--ink); stroke: var(--paper); stroke-width: 3; }
+    .plot-text { fill: var(--muted); font: 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .plot-value { fill: var(--ink); font: 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 700; }
+    .runtime-figure .revealed { opacity: 0; transition: opacity 420ms ease; }
+    .runtime-figure.is-visible .revealed { opacity: 1; }
+
+    .temporal-details { margin: 2.8rem 0 3.8rem; border-top: 1px solid var(--soft-rule); border-bottom: 1px solid var(--soft-rule); }
+    .temporal-details summary { padding: 0.9rem 0; color: var(--muted); cursor: pointer; list-style: none; }
+    .temporal-details summary::-webkit-details-marker { display: none; }
+    .temporal-details summary::before { content: "+ "; color: var(--ink); }
+    .temporal-details[open] summary::before { content: "− "; }
+    .temporal-details ul { padding: 0.5rem 0 1.2rem 1.25rem; }
+    .equation {
+      margin: 2.2rem 0 2.5rem;
+      padding: 1.1rem 1.25rem;
+      border-left: 2px solid var(--ink);
+      background: var(--wash);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: clamp(0.7rem, 2.1vw, 0.86rem);
+      line-height: 1.75;
+      white-space: pre;
+      overflow-x: auto;
+    }
+    .end-rule { width: 3rem; margin: 4.5rem auto 0; border: 0; border-top: 2px solid var(--ink); }
+
+    @media (max-width: 720px) {
+      body { padding-inline: 1rem; font-size: 17px; }
+      .site-header { align-items: flex-start; gap: 1rem; }
+      .site-nav { gap: 0.85rem; font-size: 0.6rem; }
+      article { padding-top: 3.4rem; }
+      h1 { margin-bottom: 2.4rem; }
+      .system-figure, .runtime-figure { width: 100%; margin-block: 2.8rem; }
+      .runtime-figure { padding-inline: 0.5rem; }
+      .plot-text { font-size: 8px; }
+      .plot-value { font-size: 9px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .runtime-figure .revealed { transition: none; } }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="../index.html">parthav-shergill</a>
+    <nav class="site-nav" aria-label="Elsewhere">
+      <a href="https://github.com/parthavshergill">github</a>
+      <a href="https://x.com/parthavshergill">x</a>
+      <a href="https://www.linkedin.com/in/parthav-shergill/">linkedin</a>
+    </nav>
+  </header>
+
+  <article>
+    <h1>The perks of having a wall-time formula</h1>
+
+    <p>At <a href="https://effectiveailabs.com/">Effective</a>, we build and host insurance rating algorithms. A rater takes a description of a risk and returns a premium or an explicit rejection. Calling one is an ordinary API request, while calling one over enough carefully chosen inputs gives us a way to study how an insurance carrier prices a market.</p>
+
+    <p>The deployed raters discussed here are generated Python programs, although the architecture only assumes that loading a rater is expensive enough to amortize across many inputs; the same design also applies to a future native RSL runtime.</p>
+
+    <p>AI slop is a bit like MSG for blog posts: a small amount makes them look more tasteful. I had Codex draw the diagrams and typeset the formulas in this one.</p>
+
+    <p>Let <code>N</code> be the number of inputs and <code>R</code> the number of raters. We can set <code>N = 100,000</code> and <code>R = 1</code> to look for discontinuities, surprising interactions, and changes in eligibility within one carrier. We can also set <code>N = 10,000</code> and <code>R = 10</code> to compare appetite and premiums across carriers. Both experiments produce <code>NR = 100,000</code> ratings. They are most useful when they finish quickly enough for an analyst or agent to inspect the result, form another hypothesis, and run the next one in the same session.</p>
+
+    <p>The naive execution path would have taken about 31 minutes to rate 100,000 inputs against one rater.</p>
+
+    <figure class="runtime-figure is-visible" data-stage="0">
+      <div class="plot-title">100,000 ratings <span class="plot-stage">— baseline</span></div>
+      <svg viewBox="0 0 760 270" role="img" aria-label="Runtime plot beginning at 31 minutes for the baseline implementation">
+        <line class="plot-grid" x1="62" y1="46" x2="730" y2="46"/><line class="plot-grid" x1="62" y1="98" x2="730" y2="98"/><line class="plot-grid" x1="62" y1="150" x2="730" y2="150"/><line class="plot-grid" x1="62" y1="202" x2="730" y2="202"/>
+        <line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/>
+        <text class="plot-text" x="50" y="50" text-anchor="end">30m</text><text class="plot-text" x="50" y="102" text-anchor="end">20m</text><text class="plot-text" x="50" y="154" text-anchor="end">10m</text><text class="plot-text" x="50" y="206" text-anchor="end">0m</text>
+        <circle class="plot-point" cx="90" cy="41" r="6"/><text class="plot-value" x="90" y="28" text-anchor="middle">31:00</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text>
+      </svg>
+      <figcaption>Each section adds one property to the system and one measured point to this curve.</figcaption>
+    </figure>
+
+    <p>A batch can be arbitrarily large, while a process has finite memory. We represent the batch as a variable number of fixed-size, immutable partitions and give each executor a bounded amount of work. Let <code>P</code> be the maximum number of rows in a partition.</p>
+
+    <div class="equation">partitions = ⌈N / P⌉
+tasks      = R⌈N / P⌉</div>
+
+    <p>This is similar to <a href="https://matklad.github.io/2026/09/02/static-allocation-constant-work.html">Static Allocation, Constant Work</a>: decide what the system promises to handle, make operation at that limit predictable, and reject excess work before the machine discovers the limit through an out-of-memory kill.</p>
+
+    <figure class="system-figure">
+      <svg viewBox="0 0 920 330" role="img" aria-labelledby="system-title system-desc">
+        <title id="system-title">Bounded batch rating architecture</title>
+        <desc id="system-desc">An immutable manifest points to fixed-size partitions. Temporal distributes partition and rater tasks to fixed-capacity workers. Workers commit immutable rated artifacts and an ordered output manifest.</desc>
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#24231f"/></marker></defs>
+        <rect class="diagram-box" x="28" y="126" width="168" height="70"/><text class="diagram-label" x="112" y="155" text-anchor="middle">input manifest</text><text class="diagram-note" x="112" y="175" text-anchor="middle">immutable references</text>
+        <path class="diagram-line" d="M196 161 H263" marker-end="url(#arrow)"/>
+        <rect class="diagram-soft" x="273" y="28" width="160" height="58"/><rect class="diagram-soft" x="273" y="104" width="160" height="58"/><rect class="diagram-soft" x="273" y="180" width="160" height="58"/><rect class="diagram-soft" x="273" y="256" width="160" height="58"/>
+        <text class="diagram-label" x="353" y="62" text-anchor="middle">partition 0</text><text class="diagram-label" x="353" y="138" text-anchor="middle">partition 1</text><text class="diagram-label" x="353" y="214" text-anchor="middle">partition 2</text><text class="diagram-label" x="353" y="290" text-anchor="middle">partition …</text>
+        <path class="diagram-line" d="M433 57 C486 57 465 126 512 126" marker-end="url(#arrow)"/><path class="diagram-line" d="M433 133 H512" marker-end="url(#arrow)"/><path class="diagram-line" d="M433 209 C486 209 465 170 512 170" marker-end="url(#arrow)"/><path class="diagram-line" d="M433 285 C486 285 465 190 512 190" marker-end="url(#arrow)"/>
+        <rect class="diagram-box" x="522" y="99" width="160" height="98"/><text class="diagram-label" x="602" y="139" text-anchor="middle">Temporal</text><text class="diagram-note" x="602" y="160" text-anchor="middle">(partition, rater)</text><text class="diagram-note" x="602" y="176" text-anchor="middle">durable tasks</text>
+        <path class="diagram-line" d="M682 148 H738" marker-end="url(#arrow)"/>
+        <rect class="diagram-soft" x="748" y="66" width="144" height="58"/><rect class="diagram-soft" x="748" y="142" width="144" height="58"/><rect class="diagram-soft" x="748" y="218" width="144" height="58"/>
+        <text class="diagram-label" x="820" y="91" text-anchor="middle">worker 0</text><text class="diagram-note" x="820" y="108" text-anchor="middle">one partition</text><text class="diagram-label" x="820" y="167" text-anchor="middle">worker 1</text><text class="diagram-note" x="820" y="184" text-anchor="middle">one partition</text><text class="diagram-label" x="820" y="243" text-anchor="middle">worker …</text><text class="diagram-note" x="820" y="260" text-anchor="middle">one partition</text>
+      </svg>
+      <figcaption>Variable total work is represented as more fixed-size tasks, never a larger executor.</figcaption>
+    </figure>
+
+    <div class="equation">total work       = Θ(NR)
+work per task    = O(P) = O(1), for fixed P</div>
+
+    <h2>What properties do we want?</h2>
+    <p>At a high level, we want increasing the size of a batch to create more bounded work instead of larger processes or more complicated execution paths.</p>
+    <ul>
+      <li><strong>Bounded memory.</strong> An API process, workflow, or worker should only need to hold one bounded page or partition of data.</li>
+      <li><strong>Deterministic identity.</strong> Every partition, rater invocation, and output should have an identity derived from the run so a retry converges on the same result.</li>
+      <li><strong>Durable partial progress.</strong> Once a partition result is committed, a process crash should not require it to be computed again.</li>
+      <li><strong>Ordered results.</strong> Parallel execution should produce the same observable order as a simple sequential map over inputs and raters.</li>
+      <li><strong>Explicit concurrency.</strong> The number of large rater processes should follow from the number of physical workers, without multiplication through nested application-level pools.</li>
+      <li><strong>A small control plane.</strong> Workflow state should contain references and completion state while object storage contains the input and output data.</li>
+    </ul>
+
+    <details class="temporal-details">
+      <summary>Why Temporal?</summary>
+      <ul>
+        <li>A batch run is a long-lived coordination problem. Temporal records which partitions exist, which activities completed, and which need to be retried when a worker disappears.</li>
+        <li>Workflows give us a deterministic place to express admission, cancellation, ordering, and the final commit. Activities contain the fallible operations: reading artifacts, starting runtime processes, evaluating raters, and writing results.</li>
+        <li>Task queues provide a durable buffer between logical concurrency and physical capacity. A workflow can describe all available work while a bounded worker fleet decides how much runs simultaneously.</li>
+        <li>Activity retries compose well with immutable artifacts and deterministic IDs. Repeating an activity either creates its expected result or observes that the result already exists.</li>
+        <li>Temporal history remains small when workflows carry typed artifact references instead of input rows and rating results. The data plane can grow independently in object storage.</li>
+      </ul>
+    </details>
+
+    <h2>1. Amortize fixed overhead inside a bounded unit</h2>
+    <p>For rater <code>r</code>, let <code>eᵣ</code> be the average evaluation time for one input and <code>Fᵣ</code> the fixed cost of acquiring a worker, loading the rater, crossing a process boundary, validating a request, and committing its result.</p>
+    <div class="equation">one row per task    ≈ N(Fᵣ + eᵣ)
+P rows per task     ≈ ⌈N / P⌉Fᵣ + Neᵣ
+time per partition  ≈ Fᵣ + eᵣP</div>
+    <p>A bulk operation sends an ordered partition through an already loaded rater process.</p>
+    <div class="equation">|request| ≤ P
+|outcomes| = |request|</div>
+    <p>Mapping failures and rating failures remain attached to their input positions, so batching does not weaken the row-level contract.</p>
+    <p>The same boundary works for persistence. A partition produces a bounded collection of deterministic execution records, which can be inserted with one atomic database operation.</p>
+    <div class="equation">database round trips: N → ⌈N / P⌉</div>
+    <p>Bulk execution and atomic persistence reduce the projected 100,000-input path from about 31 minutes to 4 minutes and 59 seconds.</p>
+    <figure class="runtime-figure" data-stage="1"><div class="plot-title">100,000 ratings <span class="plot-stage">— amortize fixed work</span></div><svg viewBox="0 0 760 270" aria-label="Runtime falls from 31 minutes to 4 minutes and 59 seconds"><line class="plot-grid" x1="62" y1="46" x2="730" y2="46"/><line class="plot-grid" x1="62" y1="98" x2="730" y2="98"/><line class="plot-grid" x1="62" y1="150" x2="730" y2="150"/><line class="plot-grid" x1="62" y1="202" x2="730" y2="202"/><line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/><text class="plot-text" x="50" y="50" text-anchor="end">30m</text><text class="plot-text" x="50" y="102" text-anchor="end">20m</text><text class="plot-text" x="50" y="154" text-anchor="end">10m</text><text class="plot-text" x="50" y="206" text-anchor="end">0m</text><path class="plot-path revealed" d="M90 41 L245 176"/><circle class="plot-point" cx="90" cy="41" r="6"/><circle class="plot-point revealed" cx="245" cy="176" r="6"/><text class="plot-value" x="90" y="28" text-anchor="middle">31:00</text><text class="plot-value revealed" x="245" y="163" text-anchor="middle">4:59</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text><text class="plot-text" x="245" y="243" text-anchor="middle">bounded calls</text></svg></figure>
+
+    <h2>2. Keep O(N) data outside O(1)-memory executors</h2>
+    <p>Passing a file identifier to an API only helps if the API leaves the file where it is. Downloading the complete artifact before starting a workflow moves the memory limit from the HTTP request to the API process.</p>
+    <p>The run API accepts an immutable input manifest. Each partition reference includes its artifact identity, content digest, storage generation, and row range. The workflow passes these references to activities, and each activity reads only the partition it owns.</p>
+    <p>Outputs use the same representation. A completed <code>(partition, rater)</code> task writes one immutable rated artifact, and the final output is a compact ordered manifest of those artifacts. Individual rating executions remain useful for search and UI history, but a separate durable workflow can populate that index after the output manifest commits.</p>
+    <div class="equation">artifact storage     = O(NR)
+control-plane state  = O(R⌈N / P⌉)
+executor memory      = O(P) = O(1), for fixed P</div>
+    <p>Streaming input preparation and moving execution indexing after completion reduce the measured 100,000-input execution time to 3 minutes and 8 seconds.</p>
+    <figure class="runtime-figure" data-stage="2"><div class="plot-title">100,000 ratings <span class="plot-stage">— separate control and data</span></div><svg viewBox="0 0 760 270" aria-label="Runtime falls from 31 minutes to 4 minutes and 59 seconds, then 3 minutes and 8 seconds"><line class="plot-grid" x1="62" y1="46" x2="730" y2="46"/><line class="plot-grid" x1="62" y1="98" x2="730" y2="98"/><line class="plot-grid" x1="62" y1="150" x2="730" y2="150"/><line class="plot-grid" x1="62" y1="202" x2="730" y2="202"/><line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/><text class="plot-text" x="50" y="50" text-anchor="end">30m</text><text class="plot-text" x="50" y="102" text-anchor="end">20m</text><text class="plot-text" x="50" y="154" text-anchor="end">10m</text><text class="plot-text" x="50" y="206" text-anchor="end">0m</text><path class="plot-path" d="M90 41 L245 176"/><path class="plot-path revealed" d="M245 176 L400 186"/><circle class="plot-point" cx="90" cy="41" r="6"/><circle class="plot-point" cx="245" cy="176" r="6"/><circle class="plot-point revealed" cx="400" cy="186" r="6"/><text class="plot-value" x="90" y="28" text-anchor="middle">31:00</text><text class="plot-value" x="245" y="163" text-anchor="middle">4:59</text><text class="plot-value revealed" x="400" y="173" text-anchor="middle">3:08</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text><text class="plot-text" x="245" y="243" text-anchor="middle">bounded calls</text><text class="plot-text" x="400" y="243" text-anchor="middle">artifact plane</text></svg></figure>
+
+    <h2>3. Make computation, persistence, and retry the same unit</h2>
+    <p>The natural unit of work for a batch containing several raters is the pair <code>(partition, rater)</code>. It maps one partition into one rater’s input schema, evaluates the mapped rows with one loaded rater process, and writes one rated artifact.</p>
+    <figure class="system-figure"><svg viewBox="0 0 920 210" role="img" aria-label="One partition and rater task maps a raw partition, evaluates it, and commits a rated artifact"><defs><marker id="arrow2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#24231f"/></marker></defs><rect class="diagram-box" x="22" y="58" width="172" height="78"/><text class="diagram-label" x="108" y="91" text-anchor="middle">raw partition</text><text class="diagram-note" x="108" y="112" text-anchor="middle">immutable</text><path class="diagram-line" d="M194 97 H258" marker-end="url(#arrow2)"/><rect class="diagram-soft" x="268" y="58" width="172" height="78"/><text class="diagram-label" x="354" y="91" text-anchor="middle">map inputs</text><text class="diagram-note" x="354" y="112" text-anchor="middle">short-lived process</text><path class="diagram-line" d="M440 97 H504" marker-end="url(#arrow2)"/><rect class="diagram-soft" x="514" y="58" width="172" height="78"/><text class="diagram-label" x="600" y="91" text-anchor="middle">evaluate rater</text><text class="diagram-note" x="600" y="112" text-anchor="middle">one loaded runtime</text><path class="diagram-line" d="M686 97 H750" marker-end="url(#arrow2)"/><rect class="diagram-box" x="760" y="58" width="138" height="78"/><text class="diagram-label" x="829" y="91" text-anchor="middle">rated artifact</text><text class="diagram-note" x="829" y="112" text-anchor="middle">atomic commit</text><path class="diagram-dash" d="M829 146 C829 190 354 190 354 146" marker-end="url(#arrow2)"/><text class="diagram-note" x="592" y="180" text-anchor="middle">retry observes or recreates the same artifact</text></svg><figcaption>One activity owns the computation, its durable result, and the work repeated after failure.</figcaption></figure>
+    <p>The mapper is small and short-lived. It exits before the rater is loaded, which keeps arbitrary mapper code isolated without making two large processes compete for the same memory. The rater process then owns the bulk evaluation until the bounded partition finishes.</p>
+    <p>This activity is also the persistence and retry boundary. Its deterministic artifact ID lets a retry reuse a result that was committed before an acknowledgement was lost.</p>
+    <div class="equation">maximum recomputation after failure ≤ P ratings</div>
+    <p>The output manifest gathers independently computed artifacts in input and rater order. No worker needs to download all of them and construct another copy of the output. Partition-native execution reduces the measured time for 100,000 ratings to 1 minute and 58 seconds.</p>
+    <figure class="runtime-figure" data-stage="3"><div class="plot-title">100,000 ratings <span class="plot-stage">— align the unit of work</span></div><svg viewBox="0 0 760 270" aria-label="Runtime falls through four measurements to 1 minute and 58 seconds"><line class="plot-grid" x1="62" y1="46" x2="730" y2="46"/><line class="plot-grid" x1="62" y1="98" x2="730" y2="98"/><line class="plot-grid" x1="62" y1="150" x2="730" y2="150"/><line class="plot-grid" x1="62" y1="202" x2="730" y2="202"/><line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/><text class="plot-text" x="50" y="50" text-anchor="end">30m</text><text class="plot-text" x="50" y="102" text-anchor="end">20m</text><text class="plot-text" x="50" y="154" text-anchor="end">10m</text><text class="plot-text" x="50" y="206" text-anchor="end">0m</text><path class="plot-path" d="M90 41 L245 176 L400 186"/><path class="plot-path revealed" d="M400 186 L555 192"/><circle class="plot-point" cx="90" cy="41" r="6"/><circle class="plot-point" cx="245" cy="176" r="6"/><circle class="plot-point" cx="400" cy="186" r="6"/><circle class="plot-point revealed" cx="555" cy="192" r="6"/><text class="plot-value" x="90" y="28" text-anchor="middle">31:00</text><text class="plot-value" x="245" y="163" text-anchor="middle">4:59</text><text class="plot-value" x="400" y="173" text-anchor="middle">3:08</text><text class="plot-value revealed" x="555" y="179" text-anchor="middle">1:58</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text><text class="plot-text" x="245" y="243" text-anchor="middle">bounded calls</text><text class="plot-text" x="400" y="243" text-anchor="middle">artifact plane</text><text class="plot-text" x="555" y="243" text-anchor="middle">partition tasks</text></svg></figure>
+
+    <h2>4. Scale by adding fixed-capacity workers</h2>
+    <p>Once an activity has a fixed resource envelope, physical concurrency becomes a deployment choice. Each partition worker admits one activity and loads one rater process. Additional work waits in Temporal, where it consumes queue capacity instead of process memory.</p>
+    <p>The workflow controls how many durable tasks may be outstanding. Kubernetes controls how many workers may execute them. These are separate limits because workflow history and machine capacity have different constraints.</p>
+    <p>Task-queue depth provides the demand signal for autoscaling. Partition workflows and their rating activities share the dedicated partition queue, which also lets Temporal hand an activity directly to the worker that completed the preceding workflow task. KEDA observes both workflow and activity backlog and adds workers until the amount of queued work approaches the configured target.</p>
+    <p>Let <code>W</code> be the number of workers. Scheduling, queue handoffs, autoscaling delay, and unequal task durations keep some fraction of that capacity idle, so let <code>U ∈ (0, 1]</code> be worker utilization.</p>
+    <div class="equation">wall time        ≈ N / UW · Σᵣ(eᵣ + Fᵣ/P)
+executor memory  = O(P)
+fleet memory     = O(PW)</div>
+    <p>With eager partition dispatch and activity-aware scaling, the 100,000-input run completed in 1 minute and 51 seconds.</p>
+    <figure class="runtime-figure" data-stage="4"><div class="plot-title">100,000 ratings <span class="plot-stage">— final system</span></div><svg viewBox="0 0 760 270" aria-label="Final runtime plot falling from 31 minutes to 1 minute and 51 seconds"><line class="plot-grid" x1="62" y1="46" x2="730" y2="46"/><line class="plot-grid" x1="62" y1="98" x2="730" y2="98"/><line class="plot-grid" x1="62" y1="150" x2="730" y2="150"/><line class="plot-grid" x1="62" y1="202" x2="730" y2="202"/><line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/><text class="plot-text" x="50" y="50" text-anchor="end">30m</text><text class="plot-text" x="50" y="102" text-anchor="end">20m</text><text class="plot-text" x="50" y="154" text-anchor="end">10m</text><text class="plot-text" x="50" y="206" text-anchor="end">0m</text><path class="plot-path" d="M90 41 L245 176 L400 186 L555 192"/><path class="plot-path revealed" d="M555 192 L710 193"/><circle class="plot-point" cx="90" cy="41" r="6"/><circle class="plot-point" cx="245" cy="176" r="6"/><circle class="plot-point" cx="400" cy="186" r="6"/><circle class="plot-point" cx="555" cy="192" r="6"/><circle class="plot-point revealed" cx="710" cy="193" r="6"/><text class="plot-value" x="90" y="28" text-anchor="middle">31:00</text><text class="plot-value" x="245" y="163" text-anchor="middle">4:59</text><text class="plot-value" x="400" y="173" text-anchor="middle">3:08</text><text class="plot-value" x="555" y="179" text-anchor="middle">1:58</text><text class="plot-value revealed" x="710" y="180" text-anchor="middle">1:51</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text><text class="plot-text" x="245" y="243" text-anchor="middle">bounded calls</text><text class="plot-text" x="400" y="243" text-anchor="middle">artifact plane</text><text class="plot-text" x="555" y="243" text-anchor="middle">partition tasks</text><text class="plot-text" x="710" y="243" text-anchor="middle">scaled workers</text></svg></figure>
+
+    <h2>Where is the headroom?</h2>
+    <p>There is still a lot of headroom, and the wall-time estimate gives us a useful order in which to look for it:</p>
+    <div class="equation">wall time ≈ N / UW · Σᵣ(eᵣ + Fᵣ/P)
+
+1% ↑ W or U  →  ≈ 1% ↓ wall time
+1% ↓ eᵣ      →  [eᵣ / Σᵣ(eᵣ + Fᵣ/P)] × 1% ↓ wall time
+1% ↓ Fᵣ      →  [(Fᵣ/P) / Σᵣ(eᵣ + Fᵣ/P)] × 1% ↓ wall time
+∂ wall time / ∂P ∝ -1/P²</div>
+    <p>For the common case in which evaluating a rater costs more than starting it, this suggests the following ranking:</p>
+    <ol>
+      <li><code>U ↑</code>, then <code>W ↑</code>. Both have unit elasticity. Recovering idle worker capacity through eager dispatch, short queue handoffs, and balanced tasks comes first; adding workers provides the same proportional effect once the existing fleet stays busy. Both stop scaling when the queue or another shared resource cannot supply enough work.</li>
+      <li><code>eᵣ ↓</code>. Optimize the raters with the largest <code>eᵣ</code> terms. A native RSL evaluator, better table indexes, and optimization of common expression paths reduce work paid once for every input. Raters vary widely here because their programs and tables vary widely.</li>
+      <li><code>Fᵣ ↓</code>. Optimize the raters with the largest <code>Fᵣ/P</code> terms by keeping prepared raters and parsed tables warm, reducing serialization, and making artifact commits cheaper. A workload dominated by loading very large bundles can move this ahead of evaluator work.</li>
+      <li><code>P ↑</code>. Larger partitions reduce only <code>Fᵣ/P</code>, with a marginal return that decays as <code>1/P²</code>, while executor memory grows as <code>O(P)</code>. Increasing <code>P</code> is useful until the partition approaches the worker’s configured memory limit or <code>Fᵣ/P ≪ eᵣ</code>. Smaller partitions may still win when they raise <code>U</code> by balancing raters with different runtimes.</li>
+    </ol>
+    <p>Measurements of evaluation time, fixed task time, memory per row, and utilization tell us whether this default ranking applies. The formula turns those measurements into an expected wall-time change before we implement the optimization.</p>
+
+    <h2>What does this let us learn?</h2>
+    <p>A fast batch rater turns a deployed pricing algorithm into something we can probe experimentally. RSL already declares the valid input domain of a rater, so the compiler can generate large sets of valid risks as well as targeted inputs near type, table, and eligibility boundaries.</p>
+    <p>One experiment might start with 20,000 valid base risks and create four controlled variations of each. Changing a deductible, building age, limit, or other rating input one at a time gives us 100,000 points on the pricing surface. We can measure marginal premium effects, find discontinuities at rating bands, check expected monotonic relationships, and locate interactions where the same change behaves differently across segments.</p>
+    <p>Another experiment can send 10,000 representative risks through ten carrier raters. The resulting 100,000 premiums describe where carriers quote, where their appetites overlap, which carrier is cheapest for each segment, and where small changes in a risk reverse their relative position.</p>
+    <p>At 31 minutes, each question becomes a background job and encourages us to choose a few representative examples. At two minutes, an analyst or agent can inspect the result and ask a better follow-up while the context is still fresh. Bounded execution makes the infrastructure predictable, and predictable infrastructure makes the rating algorithms easier to understand.</p>
+    <hr class="end-rule">
+  </article>
+
+  <script>
+    const plots = document.querySelectorAll('.runtime-figure:not(.is-visible)');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.35 });
+    plots.forEach((plot) => observer.observe(plot));
+  </script>
+</body>
+</html>
