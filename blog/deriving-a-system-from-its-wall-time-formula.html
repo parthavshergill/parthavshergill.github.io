@@ -139,9 +139,9 @@
     <p>Humans eventually get diminishing returns from faster execution because the results arrive faster than they can interpret them. An agent can aggregate the results and start the next experiment, so the amount of useful analysis it can do stays coupled to the latency of that loop.</p>
 
     <div class="equation">analysis cycles per session
-    ≈ session duration / (t_model + t_system)</div>
+    ≈ session duration / (tₘ + tₛ)</div>
 
-    <p>Each cycle spends some time waiting on the model (<code>t_model</code>) and some time waiting on the systems it calls (<code>t_system</code>). We use frontier models through an API, so <code>t_model</code> is mostly outside our control. This post is about reducing a large component of <code>t_system</code>: running a rating algorithm over enough inputs to answer a useful question.</p>
+    <p>Each cycle spends some time waiting on the model (<code>tₘ</code>) and some time waiting on the systems it calls (<code>tₛ</code>). We use frontier models through an API, so <code>tₘ</code> is mostly outside our control. This post is about reducing a large component of <code>tₛ</code>: running a rating algorithm over enough inputs to answer a useful question.</p>
 
     <p>Our deployed raters are currently generated Python programs. The design only assumes that loading a rater costs enough to amortize over many inputs, so it also applies to a future native RSL runtime.</p>
 
@@ -165,7 +165,7 @@
     <div class="equation">partitions = ⌈N / P⌉
 tasks      = R⌈N / P⌉</div>
 
-    <p>This follows the principle in <a href="https://matklad.github.io/2026/09/02/static-allocation-constant-work.html">Static Allocation, Constant Work</a>: choose a limit, make operation at that limit predictable, and reject excess work before the machine finds the limit through an out-of-memory kill.</p>
+    <p>We pick a limit, make work at that limit predictable, and reject excess before the machine discovers the limit through an OOM kill. The resulting system is easier to reason about (see <a href="https://matklad.github.io/2026/09/02/static-allocation-constant-work.html">Static Allocation, Constant Work</a>).</p>
 
     <figure class="system-figure">
       <svg viewBox="0 0 920 330" role="img" aria-labelledby="system-title system-desc">
@@ -271,7 +271,7 @@ fleet memory     = O(PW)</div>
     <p><code>25,000</code> base risks with four controlled variations produce <code>100,000</code> points on one pricing surface. We can measure marginal premium effects, find discontinuities, check monotonicity, and locate interactions between inputs.</p>
     <p><code>10,000</code> risks across ten carriers produce <code>100,000</code> premiums. We can compare appetite, find the cheapest carrier by segment, and locate small changes that reverse carrier rankings.</p>
     <p>At baseline, each question becomes a background job and encourages us to choose a few representative examples. At <code>17×</code> the throughput, the same workload fits inside an interactive loop.</p>
-    <p>For a human, 100,000 premiums can arrive faster than they can decide what the results mean. An agent can aggregate them, identify interesting regions, generate the next inputs, and continue the experiment. While rating remains the largest component of <code>t_system</code>:</p>
+    <p>For a human, 100,000 premiums can arrive faster than they can decide what the results mean. An agent can aggregate them, identify interesting regions, generate the next inputs, and continue the experiment. While rating remains the largest component of <code>tₛ</code>:</p>
     <div class="equation">analysis volume per session ∝ rating throughput</div>
     <p>The compiler gives an agent fast structural feedback while it writes a rater. This system gives it fast empirical feedback once the rater runs. Both increase how much useful work fits inside one agent loop.</p>
     <hr class="end-rule">
