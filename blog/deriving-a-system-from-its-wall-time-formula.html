@@ -134,18 +134,16 @@
 
     <p>At <a href="https://effectiveailabs.com/">Effective</a>, we build and host insurance rating algorithms. A rater maps a risk to a premium or an explicit rejection. Calling one is an ordinary API request; calling it over a carefully chosen input space reveals how a carrier prices a market.</p>
 
-    <p>In <a href="building-a-compiler-for-an-agent-written-dsl.html">Designing a compiler for an agent-written DSL</a>, I wrote about giving agents fast, structured feedback while they build raters. Compilation closes one feedback loop. Once the rater runs, the agent needs another: generate inputs, evaluate the program, inspect the results, and decide what to try next.</p>
-
-    <p>Humans eventually get diminishing returns from faster execution because the results arrive faster than they can interpret them. An agent can aggregate the results and start the next experiment, so the amount of useful analysis it can do stays coupled to the latency of that loop.</p>
+    <p>In <a href="building-a-compiler-for-an-agent-written-dsl.html">Designing a compiler for an agent-written DSL</a>, I wrote about giving agents fast, structured feedback while they build raters. Once a rater runs, the next loop is empirical: generate inputs, evaluate the program, inspect the results, and decide what to try next.</p>
 
     <div class="equation">analysis cycles per session
     ≈ session duration / (tₘ + tₛ)</div>
 
-    <p>Each cycle spends some time waiting on the model (<code>tₘ</code>) and some time waiting on the systems it calls (<code>tₛ</code>). We use frontier models through an API, so <code>tₘ</code> is mostly outside our control. This post is about reducing a large component of <code>tₛ</code>: running a rating algorithm over enough inputs to answer a useful question.</p>
+    <p>Each cycle waits on the model (<code>tₘ</code>) and the systems it calls (<code>tₛ</code>). We use frontier models through an API, so <code>tₘ</code> is mostly outside our control. This post reduces a large component of <code>tₛ</code>: running a rating algorithm over enough inputs to answer a useful question.</p>
 
     <p>Our deployed raters are currently generated Python programs. The design only assumes that loading a rater costs enough to amortize over many inputs, so it also applies to a future native RSL runtime.</p>
 
-    <p>A batch of <code>N</code> inputs over <code>R</code> raters produces <code>NR</code> ratings. <code>N = 100,000, R = 1</code> maps one pricing surface; <code>N = 10,000, R = 10</code> compares ten carriers.</p>
+    <p>A batch of <code>N</code> inputs over <code>R</code> raters produces <code>NR</code> ratings. We use 100,000 ratings as the representative workload below.</p>
 
     <p>For the measurements below, we treat the deliberately naive execution path—calling the single-input API 100,000 times sequentially—as the <code>1×</code> baseline.</p>
 
@@ -160,12 +158,19 @@
       <figcaption>Codex drew the diagrams for this post. AI slop is a bit like MSG for blogs: a small amount can make them look more tasteful.</figcaption>
     </figure>
 
-    <p>Batches grow; process memory does not. We split each batch into fixed-size, immutable partitions, each bounded by a row limit (<code>P</code>), and give each executor one partition.</p>
+    <h2>What properties do we want?</h2>
+    <ul>
+      <li><strong>Bounded memory.</strong> We hold at most one bounded page or partition in any API process, workflow, or worker.</li>
+      <li><strong>Durable progress.</strong> We derive partition, invocation, and output identities from the run, so retries converge without recomputing committed results.</li>
+      <li><strong>Ordered results.</strong> Parallel execution preserves the order of a sequential map over inputs and raters.</li>
+      <li><strong>Explicit concurrency.</strong> Physical workers determine how many rater processes can exist.</li>
+      <li><strong>A small control plane.</strong> Workflows carry references and completion state; object storage carries inputs and outputs.</li>
+    </ul>
+
+    <p>Those properties give us a natural unit of work. To keep process memory fixed as a batch grows, we split it into immutable partitions bounded by a row limit (<code>P</code>) and give each executor one partition.</p>
 
     <div class="equation">partitions = ⌈N / P⌉
 tasks      = R⌈N / P⌉</div>
-
-    <p>We pick a limit, make work at that limit predictable, and reject excess before the machine discovers the limit through an OOM kill. The resulting system is easier to reason about (see <a href="https://matklad.github.io/2026/09/02/static-allocation-constant-work.html">Static Allocation, Constant Work</a>).</p>
 
     <figure class="system-figure">
       <svg viewBox="0 0 920 330" role="img" aria-labelledby="system-title system-desc">
@@ -182,43 +187,36 @@ tasks      = R⌈N / P⌉</div>
         <rect class="diagram-soft" x="748" y="66" width="144" height="58"/><rect class="diagram-soft" x="748" y="142" width="144" height="58"/><rect class="diagram-soft" x="748" y="218" width="144" height="58"/>
         <text class="diagram-label" x="820" y="91" text-anchor="middle">worker 0</text><text class="diagram-note" x="820" y="108" text-anchor="middle">one partition</text><text class="diagram-label" x="820" y="167" text-anchor="middle">worker 1</text><text class="diagram-note" x="820" y="184" text-anchor="middle">one partition</text><text class="diagram-label" x="820" y="243" text-anchor="middle">worker …</text><text class="diagram-note" x="820" y="260" text-anchor="middle">one partition</text>
       </svg>
-      <figcaption>Variable total work is represented as more fixed-size tasks, never a larger executor.</figcaption>
     </figure>
 
     <div class="equation">total work       = Θ(NR)
 work per task    = O(P) = O(1), for fixed P</div>
 
-    <h2>What properties do we want?</h2>
-    <ul>
-      <li><strong>Bounded memory.</strong> We hold at most one bounded page or partition in any API process, workflow, or worker.</li>
-      <li><strong>Deterministic identity.</strong> We derive partition, invocation, and output identities from the run, so retries converge on the same results.</li>
-      <li><strong>Durable partial progress.</strong> Once we commit a partition result, a crash does not make us compute it again.</li>
-      <li><strong>Ordered results.</strong> Parallel execution preserves the order of a sequential map over inputs and raters.</li>
-      <li><strong>Explicit concurrency.</strong> Physical workers determine how many rater processes can exist.</li>
-      <li><strong>A small control plane.</strong> Workflows carry references and completion state; object storage carries inputs and outputs.</li>
-    </ul>
+    <p>We pick <code>P</code>, make work at that limit predictable, and reject excess before the machine discovers the limit through an OOM kill, following <a href="https://matklad.github.io/2026/09/02/static-allocation-constant-work.html">Static Allocation, Constant Work</a>.</p>
 
     <details class="temporal-details">
       <summary>Why Temporal?</summary>
       <ul>
-        <li>Temporal records which partitions exist, which completed, and which need retrying.</li>
-        <li>We express admission, cancellation, ordering, and final commit in workflows; activities perform fallible I/O and evaluation.</li>
-        <li>Task queues buffer durable work while the worker fleet determines physical concurrency.</li>
-        <li>Deterministic IDs and immutable artifacts make retries converge, while typed artifact references keep workflow history small.</li>
+        <li><strong>Workflows are the durable control plane.</strong> A batch workflow receives a manifest reference, derives its tasks, records completed artifact references, and commits the ordered output. Replay recovers that coordination after a process disappears.</li>
+        <li><strong>Activities are the bounded execution and retry units.</strong> One activity owns one <code>(partition, rater)</code> pair and its deterministic artifact, so computation, persistence, timeouts, and retries share a boundary.</li>
+        <li><strong>Task queues separate work from capacity.</strong> The workflow exposes partition work, fixed-capacity workers pull only what they can run, and queue depth drives autoscaling.</li>
       </ul>
     </details>
 
+    <p>Each rater (<code>r</code>) has a per-input evaluation time (<code>eᵣ</code>) and a fixed task cost (<code>Fᵣ</code>). Across <code>W</code> workers, scheduling and uneven task durations reduce utilization (<code>U ∈ (0, 1]</code>), giving us this wall-time model:</p>
+
+    <div class="equation">wall time ≈ N / UW · Σᵣ(eᵣ + Fᵣ/P)</div>
+
+    <p>The formula gives us the performance levers. The next sections amortize <code>Fᵣ</code>, keep <code>O(NR)</code> data off the control path, align retries with partitions, and increase <code>UW</code>.</p>
+
     <h2>1. Amortize fixed overhead inside a bounded unit</h2>
-    <p>Each rater (<code>r</code>) has a per-input evaluation time (<code>eᵣ</code>) and a fixed task cost (<code>Fᵣ</code>): acquiring a worker, loading the rater, crossing a process boundary, validating the request, and committing the result.</p>
+    <p>Calling the single-input API pays <code>Fᵣ</code> for every row. A partition pays it once:</p>
     <div class="equation">one row per task    ≈ N(Fᵣ + eᵣ)
-P rows per task     ≈ ⌈N / P⌉Fᵣ + Neᵣ
-time per partition  ≈ Fᵣ + eᵣP</div>
+P rows per task     ≈ N(eᵣ + Fᵣ/P)</div>
     <p>We send each ordered partition through an already loaded rater process.</p>
-    <div class="equation">|request| ≤ P
-|outcomes| = |request|</div>
     <p>Outcomes retain their input positions, including mapping and rating failures. We persist the partition’s deterministic execution records in one atomic operation.</p>
     <div class="equation">database round trips: N → ⌈N / P⌉</div>
-    <p>Bulk execution and atomic persistence reduced wall time to about 16% of the naive path, a cumulative speedup of <code>6×</code>.</p>
+    <p>Bulk execution and atomic persistence bring the cumulative speedup to <code>6×</code>.</p>
     <figure class="runtime-figure" data-stage="1"><div class="plot-title">100,000 ratings <span class="plot-stage">— amortize fixed work</span></div><svg viewBox="0 0 760 270" aria-label="Cumulative speedup rises from 1x to 6x"><line class="plot-grid" x1="62" y1="70" x2="730" y2="70"/><line class="plot-grid" x1="62" y1="120" x2="730" y2="120"/><line class="plot-grid" x1="62" y1="170" x2="730" y2="170"/><line class="plot-grid" x1="62" y1="220" x2="730" y2="220"/><line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/><text class="plot-text" x="50" y="74" text-anchor="end">15×</text><text class="plot-text" x="50" y="124" text-anchor="end">10×</text><text class="plot-text" x="50" y="174" text-anchor="end">5×</text><text class="plot-text" x="50" y="224" text-anchor="end">0×</text><path class="plot-path revealed" d="M90 210 L245 160"/><circle class="plot-point" cx="90" cy="210" r="6"/><circle class="plot-point revealed" cx="245" cy="160" r="6"/><text class="plot-value" x="90" y="197" text-anchor="middle">1×</text><text class="plot-value revealed" x="245" y="147" text-anchor="middle">6×</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text><text class="plot-text" x="245" y="243" text-anchor="middle">bounded calls</text></svg></figure>
 
     <h2>2. Keep O(N) data outside O(1)-memory executors</h2>
@@ -226,27 +224,24 @@ time per partition  ≈ Fᵣ + eᵣP</div>
     <p>Our run API accepts an immutable input manifest. Each activity receives a partition reference and reads only its partition. A completed <code>(partition, rater)</code> task writes one immutable rated artifact; the final manifest orders those artifacts and commits the run.</p>
     <p>We index individual executions for search and UI history after committing the output manifest. This cheats a little on completion semantics: the result becomes durable before every execution becomes searchable. The manifest remains the source of truth, and a durable workflow owns the remaining indexing work. This removes an <code>O(NR)</code> projection from the next agent turn’s critical path.</p>
     <div class="equation">artifact storage     = O(NR)
-control-plane state  = O(R⌈N / P⌉)
-executor memory      = O(P) = O(1), for fixed P</div>
-    <p>Streaming input preparation and eventual execution indexing reduced wall time to about 10% of the naive path, a cumulative speedup of <code>10×</code>.</p>
+control-plane state  = O(R⌈N / P⌉)</div>
+    <p>Streaming input preparation and eventual execution indexing bring the cumulative speedup to <code>10×</code>.</p>
     <figure class="runtime-figure" data-stage="2"><div class="plot-title">100,000 ratings <span class="plot-stage">— separate control and data</span></div><svg viewBox="0 0 760 270" aria-label="Cumulative speedup rises from 1x through 6x to 10x"><line class="plot-grid" x1="62" y1="70" x2="730" y2="70"/><line class="plot-grid" x1="62" y1="120" x2="730" y2="120"/><line class="plot-grid" x1="62" y1="170" x2="730" y2="170"/><line class="plot-grid" x1="62" y1="220" x2="730" y2="220"/><line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/><text class="plot-text" x="50" y="74" text-anchor="end">15×</text><text class="plot-text" x="50" y="124" text-anchor="end">10×</text><text class="plot-text" x="50" y="174" text-anchor="end">5×</text><text class="plot-text" x="50" y="224" text-anchor="end">0×</text><path class="plot-path" d="M90 210 L245 160"/><path class="plot-path revealed" d="M245 160 L400 120"/><circle class="plot-point" cx="90" cy="210" r="6"/><circle class="plot-point" cx="245" cy="160" r="6"/><circle class="plot-point revealed" cx="400" cy="120" r="6"/><text class="plot-value" x="90" y="197" text-anchor="middle">1×</text><text class="plot-value" x="245" y="147" text-anchor="middle">6×</text><text class="plot-value revealed" x="400" y="107" text-anchor="middle">10×</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text><text class="plot-text" x="245" y="243" text-anchor="middle">bounded calls</text><text class="plot-text" x="400" y="243" text-anchor="middle">artifact plane</text></svg></figure>
 
     <h2>3. Make computation, persistence, and retry the same unit</h2>
     <p>We make <code>(partition, rater)</code> the unit of computation, persistence, and retry. It maps one partition, evaluates it with one loaded rater, and writes one rated artifact.</p>
-    <figure class="system-figure"><svg viewBox="0 0 920 210" role="img" aria-label="One partition and rater task maps a raw partition, evaluates it, and commits a rated artifact"><defs><marker id="arrow2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#24231f"/></marker></defs><rect class="diagram-box" x="22" y="58" width="172" height="78"/><text class="diagram-label" x="108" y="91" text-anchor="middle">raw partition</text><text class="diagram-note" x="108" y="112" text-anchor="middle">immutable</text><path class="diagram-line" d="M194 97 H258" marker-end="url(#arrow2)"/><rect class="diagram-soft" x="268" y="58" width="172" height="78"/><text class="diagram-label" x="354" y="91" text-anchor="middle">map inputs</text><text class="diagram-note" x="354" y="112" text-anchor="middle">short-lived process</text><path class="diagram-line" d="M440 97 H504" marker-end="url(#arrow2)"/><rect class="diagram-soft" x="514" y="58" width="172" height="78"/><text class="diagram-label" x="600" y="91" text-anchor="middle">evaluate rater</text><text class="diagram-note" x="600" y="112" text-anchor="middle">one loaded runtime</text><path class="diagram-line" d="M686 97 H750" marker-end="url(#arrow2)"/><rect class="diagram-box" x="760" y="58" width="138" height="78"/><text class="diagram-label" x="829" y="91" text-anchor="middle">rated artifact</text><text class="diagram-note" x="829" y="112" text-anchor="middle">atomic commit</text><path class="diagram-dash" d="M829 146 C829 190 354 190 354 146" marker-end="url(#arrow2)"/><text class="diagram-note" x="592" y="180" text-anchor="middle">retry observes or recreates the same artifact</text></svg><figcaption>One activity owns the computation, its durable result, and the work repeated after failure.</figcaption></figure>
+    <figure class="system-figure"><svg viewBox="0 0 920 210" role="img" aria-label="One partition and rater task maps a raw partition, evaluates it, and commits a rated artifact"><defs><marker id="arrow2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#24231f"/></marker></defs><rect class="diagram-box" x="22" y="58" width="172" height="78"/><text class="diagram-label" x="108" y="91" text-anchor="middle">raw partition</text><text class="diagram-note" x="108" y="112" text-anchor="middle">immutable</text><path class="diagram-line" d="M194 97 H258" marker-end="url(#arrow2)"/><rect class="diagram-soft" x="268" y="58" width="172" height="78"/><text class="diagram-label" x="354" y="91" text-anchor="middle">map inputs</text><text class="diagram-note" x="354" y="112" text-anchor="middle">short-lived process</text><path class="diagram-line" d="M440 97 H504" marker-end="url(#arrow2)"/><rect class="diagram-soft" x="514" y="58" width="172" height="78"/><text class="diagram-label" x="600" y="91" text-anchor="middle">evaluate rater</text><text class="diagram-note" x="600" y="112" text-anchor="middle">one loaded runtime</text><path class="diagram-line" d="M686 97 H750" marker-end="url(#arrow2)"/><rect class="diagram-box" x="760" y="58" width="138" height="78"/><text class="diagram-label" x="829" y="91" text-anchor="middle">rated artifact</text><text class="diagram-note" x="829" y="112" text-anchor="middle">atomic commit</text><path class="diagram-dash" d="M829 146 C829 190 354 190 354 146" marker-end="url(#arrow2)"/><text class="diagram-note" x="592" y="180" text-anchor="middle">retry observes or recreates the same artifact</text></svg></figure>
     <p>The short-lived mapper exits before we load the rater, isolating arbitrary mapping code without putting two large processes in memory together. A deterministic artifact ID lets retries reuse results committed before an acknowledgement was lost.</p>
     <div class="equation">maximum recomputation after failure ≤ P ratings</div>
-    <p>We gather artifact references in input and rater order; no worker downloads and reconstructs the full output. Partition-native execution reduced wall time to about 6.3% of baseline, a cumulative speedup of <code>16×</code>.</p>
+    <p>We gather artifact references in input and rater order, so no worker reconstructs the full output. Partition-native execution brings the cumulative speedup to <code>16×</code>.</p>
     <figure class="runtime-figure" data-stage="3"><div class="plot-title">100,000 ratings <span class="plot-stage">— align the unit of work</span></div><svg viewBox="0 0 760 270" aria-label="Cumulative speedup rises from 1x through 6x and 10x to 16x"><line class="plot-grid" x1="62" y1="70" x2="730" y2="70"/><line class="plot-grid" x1="62" y1="120" x2="730" y2="120"/><line class="plot-grid" x1="62" y1="170" x2="730" y2="170"/><line class="plot-grid" x1="62" y1="220" x2="730" y2="220"/><line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/><text class="plot-text" x="50" y="74" text-anchor="end">15×</text><text class="plot-text" x="50" y="124" text-anchor="end">10×</text><text class="plot-text" x="50" y="174" text-anchor="end">5×</text><text class="plot-text" x="50" y="224" text-anchor="end">0×</text><path class="plot-path" d="M90 210 L245 160 L400 120"/><path class="plot-path revealed" d="M400 120 L555 60"/><circle class="plot-point" cx="90" cy="210" r="6"/><circle class="plot-point" cx="245" cy="160" r="6"/><circle class="plot-point" cx="400" cy="120" r="6"/><circle class="plot-point revealed" cx="555" cy="60" r="6"/><text class="plot-value" x="90" y="197" text-anchor="middle">1×</text><text class="plot-value" x="245" y="147" text-anchor="middle">6×</text><text class="plot-value" x="400" y="107" text-anchor="middle">10×</text><text class="plot-value revealed" x="555" y="47" text-anchor="middle">16×</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text><text class="plot-text" x="245" y="243" text-anchor="middle">bounded calls</text><text class="plot-text" x="400" y="243" text-anchor="middle">artifact plane</text><text class="plot-text" x="555" y="243" text-anchor="middle">partition tasks</text></svg></figure>
 
     <h2>4. Scale by adding fixed-capacity workers</h2>
     <p>Each worker admits one activity and loads one rater process. Additional work waits durably in Temporal instead of consuming process memory.</p>
-    <p>Workflows bound outstanding durable tasks; Kubernetes bounds executing workers. We scale the fleet from partition-queue depth. Sharing that queue between partition workflows and activities also lets Temporal hand work directly to an already active worker.</p>
-    <p>Across <code>W</code> workers, scheduling, queue handoffs, autoscaling delay, and unequal task durations reduce utilization (<code>U ∈ (0, 1]</code>).</p>
-    <div class="equation">wall time        ≈ N / UW · Σᵣ(eᵣ + Fᵣ/P)
-executor memory  = O(P)
+    <p>Workflows bound outstanding tasks; Kubernetes bounds executing workers. Partition-queue depth drives autoscaling.</p>
+    <div class="equation">executor memory  = O(P)
 fleet memory     = O(PW)</div>
-    <p>Eager partition dispatch and activity-aware scaling brought wall time to about 6% of the naive path, a cumulative speedup of <code>17×</code>.</p>
+    <p>Eager partition dispatch and activity-aware scaling bring the cumulative speedup to <code>17×</code>.</p>
     <figure class="runtime-figure" data-stage="4"><div class="plot-title">100,000 ratings <span class="plot-stage">— final system</span></div><svg viewBox="0 0 760 270" aria-label="Final cumulative speedup plot rising from 1x to 17x"><line class="plot-grid" x1="62" y1="70" x2="730" y2="70"/><line class="plot-grid" x1="62" y1="120" x2="730" y2="120"/><line class="plot-grid" x1="62" y1="170" x2="730" y2="170"/><line class="plot-grid" x1="62" y1="220" x2="730" y2="220"/><line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/><text class="plot-text" x="50" y="74" text-anchor="end">15×</text><text class="plot-text" x="50" y="124" text-anchor="end">10×</text><text class="plot-text" x="50" y="174" text-anchor="end">5×</text><text class="plot-text" x="50" y="224" text-anchor="end">0×</text><path class="plot-path" d="M90 210 L245 160 L400 120 L555 60"/><path class="plot-path revealed" d="M555 60 L710 50"/><circle class="plot-point" cx="90" cy="210" r="6"/><circle class="plot-point" cx="245" cy="160" r="6"/><circle class="plot-point" cx="400" cy="120" r="6"/><circle class="plot-point" cx="555" cy="60" r="6"/><circle class="plot-point revealed" cx="710" cy="50" r="6"/><text class="plot-value" x="90" y="197" text-anchor="middle">1×</text><text class="plot-value" x="245" y="147" text-anchor="middle">6×</text><text class="plot-value" x="400" y="107" text-anchor="middle">10×</text><text class="plot-value" x="555" y="47" text-anchor="middle">16×</text><text class="plot-value revealed" x="710" y="37" text-anchor="middle">17×</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text><text class="plot-text" x="245" y="243" text-anchor="middle">bounded calls</text><text class="plot-text" x="400" y="243" text-anchor="middle">artifact plane</text><text class="plot-text" x="555" y="243" text-anchor="middle">partition tasks</text><text class="plot-text" x="710" y="243" text-anchor="middle">scaled workers</text></svg></figure>
 
     <h2>Where is the headroom?</h2>
@@ -259,20 +254,20 @@ fleet memory     = O(PW)</div>
 ∂ wall time / ∂P ∝ -1/P²</div>
     <p>For the common case in which evaluating a rater costs more than starting it, this suggests the following ranking:</p>
     <ol>
-      <li><code>U ↑</code>, then <code>W ↑</code>. Both have unit elasticity. We first recover idle capacity through eager dispatch, short handoffs, and balanced tasks, then add workers until the queue or another shared resource becomes the bottleneck.</li>
-      <li><code>eᵣ ↓</code>. A native RSL evaluator, better table indexes, and faster common expression paths reduce work paid for every input. We start with raters having the largest <code>eᵣ</code>.</li>
-      <li><code>Fᵣ ↓</code>. Warm runtimes, parsed tables, cheaper serialization, and cheaper artifact commits reduce <code>Fᵣ/P</code>. Large bundles can make this more valuable than evaluator work.</li>
-      <li><code>P ↑</code>. Larger partitions reduce <code>Fᵣ/P</code>, but returns decay as <code>1/P²</code> while memory grows as <code>O(P)</code>. We stop near the worker’s memory limit or when <code>Fᵣ/P ≪ eᵣ</code>; smaller partitions can still improve <code>U</code> through better load balancing.</li>
+      <li>Improve the mechanisms behind <code>U</code>, then increase <code>W</code>. Wall time scales inversely with both only while enough work keeps the added workers busy.</li>
+      <li>Reduce <code>eᵣ</code>. A native RSL evaluator, better table indexes, and faster common expression paths reduce work paid for every input.</li>
+      <li>Reduce <code>Fᵣ</code>. Warm runtimes, parsed tables, cheaper serialization, and cheaper artifact commits reduce the amortized term <code>Fᵣ/P</code>.</li>
+      <li>Increase <code>P</code>. Returns decay as <code>1/P²</code> while memory grows as <code>O(P)</code>, so we stop near the worker’s memory limit or when <code>Fᵣ/P ≪ eᵣ</code>.</li>
     </ol>
-    <p>We measure evaluation time, fixed task time, memory per row, and utilization to check this ranking. The formula predicts the wall-time effect before we implement each change.</p>
+    <p>Evaluation time, fixed task time, memory per row, and utilization tell us whether this ranking applies before we implement each change.</p>
 
     <h2>What does this let us learn?</h2>
     <p>A fast batch rater lets us probe a deployed pricing algorithm. Because RSL declares the valid input domain, we can generate valid risks and targeted inputs near type, table, and eligibility boundaries.</p>
     <p><code>25,000</code> base risks with four controlled variations produce <code>100,000</code> points on one pricing surface. We can measure marginal premium effects, find discontinuities, check monotonicity, and locate interactions between inputs.</p>
     <p><code>10,000</code> risks across ten carriers produce <code>100,000</code> premiums. We can compare appetite, find the cheapest carrier by segment, and locate small changes that reverse carrier rankings.</p>
     <p>At baseline, each question becomes a background job and encourages us to choose a few representative examples. At <code>17×</code> the throughput, the same workload fits inside an interactive loop.</p>
-    <p>For a human, 100,000 premiums can arrive faster than they can decide what the results mean. An agent can aggregate them, identify interesting regions, generate the next inputs, and continue the experiment. While rating remains the largest component of <code>tₛ</code>:</p>
-    <div class="equation">analysis volume per session ∝ rating throughput</div>
+    <p>For a human, 100,000 premiums can arrive faster than they can decide what the results mean. An agent can aggregate them, identify interesting regions, generate the next inputs, and continue the experiment. While rating remains the largest component of <code>tₛ</code> and the experiments have comparable value:</p>
+    <div class="equation">hypotheses tested per session ∝ rating throughput</div>
     <p>The compiler gives an agent fast structural feedback while it writes a rater. This system gives it fast empirical feedback once the rater runs. Both increase how much useful work fits inside one agent loop.</p>
     <hr class="end-rule">
   </article>
