@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generating valid inputs from a type | Parthav Shergill</title>
+  <meta name="description" content="How an explicit input contract becomes a bounded solver for valid and deliberately invalid rater inputs.">
+  <style>
+    * { box-sizing: border-box; }
+
+    :root {
+      --paper: #f2f0e6;
+      --ink: #24231f;
+      --muted: #6b6961;
+      --wash: rgba(36, 35, 31, 0.055);
+      --soft-rule: rgba(36, 35, 31, 0.22);
+    }
+
+    html { background: var(--paper); }
+
+    body {
+      margin: 0;
+      padding: 0 1.4rem 5rem;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 18px;
+      line-height: 1.72;
+      text-rendering: optimizeLegibility;
+    }
+
+    .site-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 2rem;
+      width: min(100%, 800px);
+      min-height: 3.65rem;
+      margin: 0 auto;
+      padding: 1.2rem 0 0.9rem;
+      border-bottom: 2px solid var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .brand {
+      color: var(--ink);
+      font-size: 0.86rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .site-nav { display: flex; gap: 1.25rem; font-size: 0.7rem; }
+    .site-nav a { color: var(--muted); text-decoration: none; }
+    .site-nav a:hover,
+    .site-nav a:focus-visible { text-decoration: underline; text-underline-offset: 0.22em; }
+
+    article {
+      width: min(100%, 720px);
+      margin: 0 auto;
+      padding-top: 4.8rem;
+    }
+
+    h1,
+    h2 {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      letter-spacing: -0.035em;
+    }
+
+    h1 {
+      max-width: 690px;
+      margin: 0 0 3rem;
+      font-size: clamp(2rem, 6vw, 3.65rem);
+      font-weight: 600;
+      line-height: 1.08;
+      text-wrap: balance;
+    }
+
+    h2 {
+      margin: 4.2rem 0 1.35rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--ink);
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    p { margin: 0 0 1.45rem; }
+    a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+    ul { margin: 0; padding-left: 1.25rem; }
+    li { margin: 0 0 0.9rem; padding-left: 0.4rem; }
+    li::marker { color: var(--muted); }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.86em; }
+
+    .equation,
+    .algorithm {
+      margin: 2.2rem 0 2.5rem;
+      padding: 1.1rem 1.25rem;
+      background: var(--wash);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: clamp(0.7rem, 2.1vw, 0.86rem);
+      line-height: 1.75;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .equation { border-left: 2px solid var(--ink); }
+    .algorithm { border: 1px solid var(--soft-rule); }
+    .end-rule { width: 3rem; margin: 4.5rem auto 0; border: 0; border-top: 2px solid var(--ink); }
+
+    @media (max-width: 720px) {
+      body { padding-inline: 1rem; font-size: 17px; }
+      .site-header { align-items: flex-start; gap: 1rem; }
+      .site-nav { gap: 0.85rem; font-size: 0.6rem; }
+      article { padding-top: 3.4rem; }
+      h1 { margin-bottom: 2.4rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="../index.html">parthav-shergill</a>
+    <nav class="site-nav" aria-label="Elsewhere">
+      <a href="https://github.com/parthavshergill">github</a>
+      <a href="https://x.com/parthavshergill">x</a>
+      <a href="https://www.linkedin.com/in/parthav-shergill/">linkedin</a>
+    </nav>
+  </header>
+
+  <article>
+    <h1>Generating valid inputs from a type</h1>
+
+    <p>In <a href="building-a-compiler-for-an-agent-written-dsl.html">Designing a compiler for an agent-written DSL</a>, I described an insurance rater as a total function over its valid inputs. Every valid input should produce either a premium or an explicit business rejection.</p>
+
+    <p>The phrase “valid input” hides quite a lot of work. A homeowners rater might require the roof year to be no earlier than the construction year, allow different deductibles for different states and coverages, and require references between locations, buildings, and policies to form a valid entity graph. These rules overlap: changing one field can make several other choices invalid.</p>
+
+    <p>An agent can construct examples by reading the program and repeatedly fixing validation errors. This works, but it spends tokens rediscovering a contract the program already contains. It also makes large or deliberately varied input sets annoying to produce.</p>
+
+    <p>RSL supports a fixed set of input types and requires every input domain to be explicit. Start with every value that has the right shape. A record chooses one value for each field. A Boolean chooses between two values, an enum such as <code>Occupancy</code> chooses one member of a fixed set, and an optional alarm chooses between no alarm and an <code>Alarm</code>. Numbers and dates have declared bounds. Entity declarations determine how policies, buildings, locations, drivers, and vehicles may refer to one another.</p>
+
+    <p>These constructions give us the set <code>Fields</code>. Records combine values, while Booleans, enums, and optionals choose among alternatives (in type theory, these are product and sum types). The program’s relationships and <code>requires</code> rules select the valid subset:</p>
+
+    <div class="equation">ValidInputs = { x ∈ Fields | relationships(x) ∧ requires(x) }</div>
+
+    <p>A type restricted by a predicate is called a <a href="https://www.cs.cmu.edu/~fp/papers/pldi91.pdf">refinement type</a>. Because RSL declares both the shape and the predicates, generating an input means finding any value in this set:</p>
+
+    <div class="equation">find x ∈ ValidInputs</div>
+
+    <p>Finding a value of a given type is called type inhabitation. Here the compiler can do it directly from the program instead of asking an agent to reason through the contract.</p>
+
+    <p>This is separate from rating eligibility. A contract-valid input may still produce an explicit rejection such as “outside underwriting appetite.” Input generation only establishes that the rater has received a well-formed risk within its declared domain.</p>
+
+    <h2>What properties do we want?</h2>
+
+    <ul>
+      <li><strong>Valid by construction.</strong> Every returned input satisfies field domains, entity relationships, and every <code>requires</code> rule.</li>
+      <li><strong>Useful coverage.</strong> Small batches cover Boolean and enum members, numeric and date boundaries, and literals mentioned by constraints before filling in interior values.</li>
+      <li><strong>Distinct and deterministic results.</strong> A generator version, contract hash, seed, and row index determine the same input.</li>
+      <li><strong>Bounded work.</strong> A difficult contract produces a resource error instead of consuming an unknown amount of time or memory.</li>
+      <li><strong>Specific invalid inputs.</strong> A negative witness violates one named rule, so the resulting diagnostic has a clear cause.</li>
+    </ul>
+
+    <p>The simplest generator chooses one value from each field and checks the result:</p>
+
+    <pre class="algorithm">repeat:
+    choose a value for every field
+    build the entity graph
+    return the input if every constraint passes</pre>
+
+    <p>If valid inputs occupy a fraction <code>p</code> of the structural input space, the expected work is:</p>
+
+    <div class="equation">expected attempts per result = 1 / p</div>
+
+    <p>That is fine for loose constraints and unpleasant for sparse ones. A rule requiring a number to belong to a short fixed list can make almost every random number useless. Several overlapping choices can make a repair routine explore the product of their branches.</p>
+
+    <p>We can instead turn each finite choice into bits. A Boolean needs one bit. An enum with <code>k</code> members needs <code>ceil(log2 k)</code> bits, plus a bound that rules out unused bit patterns. Numbers and dates use fixed-width integers constrained to their declared ranges.</p>
+
+    <p>The compiler can then lower a rule to Boolean choices joined by <code>or</code>, and require all of those rules at once with <code>and</code>. A small fragment might look like:</p>
+
+    <div class="equation">(owner_occupied ∨ landlord_endorsement)
+∧ (¬coastal ∨ wind_deductible_selected)</div>
+
+    <p>More generally, the resulting formula has the shape:</p>
+
+    <div class="equation">(choice ∨ choice ∨ ...)
+∧ (choice ∨ choice ∨ ...)
+∧ ...</div>
+
+    <p>This is called <a href="https://minisat.se/downloads/MiniSat.pdf">conjunctive normal form</a>, or CNF. The compiler lowers supported RSL expressions and their finite encodings into this form exactly.</p>
+
+    <p>To find an input, choose an unassigned bit. If that choice leaves a rule with only one way to be true, make the forced choice. If it makes a rule impossible, undo decisions until another branch is available:</p>
+
+    <pre class="algorithm">choose an unassigned variable
+propagate forced assignments
+if a rule is impossible, backtrack
+if every rule is satisfied, return the assignment
+otherwise continue</pre>
+
+    <p>The forced step is called unit propagation. A modern solver also records each contradiction as a new rule and jumps back to the decision that caused it, avoiding the same dead end later (conflict-driven clause learning, or CDCL; see: <a href="https://minisat.se/downloads/MiniSat.pdf">An Extensible SAT-solver</a>).</p>
+
+    <p>We use <a href="https://docs.rs/crate/rustsat/latest">RustSAT</a> to build the encodings and its MiniSat adapter to solve them. Independent groups of constraints can be solved as separate components, while a large single-field membership rule stays as a direct native set rather than becoming thousands of Boolean clauses. SAT remains exponential in the worst case, so construction, clauses, variables, memory, and solver time all have explicit limits.</p>
+
+    <p>One satisfying assignment is only the beginning of a useful sampler. We first choose something worth covering, such as a particular enum member or numeric boundary, and ask the solver for an input that contains it:</p>
+
+    <div class="equation">next input = solve(contract ∧ target ∧ unseen)</div>
+
+    <p>After each result, we add one rule saying that exact combination cannot recur (a blocking clause). The same solver session can then produce another input without rebuilding the contract. Once the useful boundaries and alternatives are exhausted, a seeded stream supplies interior targets for the rest of the batch.</p>
+
+    <p>The solver is a model finder, while the compiler remains the authority on RSL semantics. We materialize each assignment as an input and pass it through the Core input judge before returning it. A solver bug, unsupported encoding, or disagreement therefore fails generation instead of admitting an invalid row.</p>
+
+    <p>Valid witnesses also give us good starting points for negative ones. For each declared rule, the compiler mutates a valid base toward a violation and keeps the result only when the Core judge reports exactly that rule and no others:</p>
+
+    <div class="equation">valid witness:     every declared rule passes
+negative witness:  one named rule fails; every other rule passes</div>
+
+    <p>These cases are more useful than arbitrary malformed inputs. They let us test the boundary of one field, relationship, or constraint without accidentally testing three unrelated failures at the same time.</p>
+
+    <p>This is close to property-based testing, except that RSL already contains the generator’s domain and predicates. Work such as <a href="https://arxiv.org/abs/1607.05443">Beginner’s Luck</a> treats constrained test generation in much the same way: construct values from predicates instead of maintaining a separate handwritten generator.</p>
+
+    <p>For an agent, <code>rslc inputs sample</code> turns the program it just wrote into a deterministic batch of valid risks. It can run those risks through the rater and look for premiums that vanish, blow up, or cluster at suspicious values. It can pin nearby values around a boundary to find cliffs, reversed monotonicity, or inputs that unexpectedly have no effect.</p>
+
+    <p>The same batch also makes a useful regression fixture. An agent can rate it before and after an edit, isolate the rows whose results changed, or send it through two runtime backends and compare their outputs. It can measure which valid regions produce business rejections, then generate more inputs around an unexpected pocket of appetite. Through the compiler API, isolated invalid witnesses let it check that each broken rule produces the intended diagnostic without tripping unrelated validation first.</p>
+
+    <hr class="end-rule">
+  </article>
+</body>
+</html>
