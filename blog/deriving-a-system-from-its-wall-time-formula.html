@@ -112,7 +112,10 @@
       article { padding-top: 3.4rem; }
       h1 { margin-bottom: 2.4rem; }
       .system-figure, .runtime-figure { width: 100%; margin-block: 2.8rem; }
+      .system-figure { overflow-x: auto; overscroll-behavior-inline: contain; }
+      .system-figure svg { min-width: 680px; }
       .runtime-figure { padding-inline: 0.5rem; }
+      .equation { white-space: pre-wrap; overflow-wrap: anywhere; }
       .plot-text { font-size: 8px; }
       .plot-value { font-size: 9px; }
     }

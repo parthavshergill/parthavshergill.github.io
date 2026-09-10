@@ -297,11 +297,12 @@
       article { padding-top: 3.4rem; }
       h1 { margin-bottom: 2.4rem; }
       .comparison { width: 100%; margin-block: 2.8rem; }
-      .comparison-grid { grid-template-columns: 1fr; }
+      .comparison-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem; }
       .diagram-panel,
       .monkey-panel { aspect-ratio: 2 / 3; }
       .demo-tab,
       .demo-command { font-size: 0.61rem; }
+      .demo-panel pre { max-height: 26rem; }
     }
   </style>
 </head>
