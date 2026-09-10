@@ -233,7 +233,7 @@ fleet memory     = O(partition size × workers)</div>
     <figure class="runtime-figure" data-stage="4"><div class="plot-title">100,000 ratings <span class="plot-stage">— final system</span></div><svg viewBox="0 0 760 270" aria-label="Final cumulative speedup plot rising from 1x to 17x"><line class="plot-grid" x1="62" y1="70" x2="730" y2="70"/><line class="plot-grid" x1="62" y1="120" x2="730" y2="120"/><line class="plot-grid" x1="62" y1="170" x2="730" y2="170"/><line class="plot-grid" x1="62" y1="220" x2="730" y2="220"/><line class="plot-axis" x1="62" y1="26" x2="62" y2="220"/><line class="plot-axis" x1="62" y1="220" x2="730" y2="220"/><text class="plot-text" x="50" y="74" text-anchor="end">15×</text><text class="plot-text" x="50" y="124" text-anchor="end">10×</text><text class="plot-text" x="50" y="174" text-anchor="end">5×</text><text class="plot-text" x="50" y="224" text-anchor="end">0×</text><path class="plot-path" d="M90 210 L245 160 L400 120 L555 60"/><path class="plot-path revealed" d="M555 60 L710 50"/><circle class="plot-point" cx="90" cy="210" r="6"/><circle class="plot-point" cx="245" cy="160" r="6"/><circle class="plot-point" cx="400" cy="120" r="6"/><circle class="plot-point" cx="555" cy="60" r="6"/><circle class="plot-point revealed" cx="710" cy="50" r="6"/><text class="plot-value" x="90" y="197" text-anchor="middle">1×</text><text class="plot-value" x="245" y="147" text-anchor="middle">6×</text><text class="plot-value" x="400" y="107" text-anchor="middle">10×</text><text class="plot-value" x="555" y="47" text-anchor="middle">16×</text><text class="plot-value revealed" x="710" y="37" text-anchor="middle">17×</text><text class="plot-text" x="90" y="243" text-anchor="middle">baseline</text><text class="plot-text" x="245" y="243" text-anchor="middle">bounded calls</text><text class="plot-text" x="400" y="243" text-anchor="middle">artifact plane</text><text class="plot-text" x="555" y="243" text-anchor="middle">partition tasks</text><text class="plot-text" x="710" y="243" text-anchor="middle">scaled workers</text></svg></figure>
 
     <h2>Where is the headroom?</h2>
-    <p>The wall-time formula also ranks the next optimizations:</p>
+    <p>The wall-time formula also shows how each knob affects wall time:</p>
     <div class="equation">wall time ≈ total ratings / effective workers
             × (evaluation time + fixed cost / partition size)
 
@@ -241,14 +241,14 @@ fleet memory     = O(partition size × workers)</div>
 1% ↓ evaluation time    →  scaled by evaluation’s share of wall time
 1% ↓ fixed cost         →  scaled by fixed cost’s share of wall time
 returns from larger partitions decay quadratically</div>
-    <p>For the common case in which evaluating a rater costs more than starting it, this suggests the following ranking:</p>
+    <p>Once the partition is large enough to amortize loading the rater, this suggests the following tuning sequence:</p>
     <ol>
       <li>Improve utilization, then add workers. Wall time scales inversely with both only while enough work keeps the added workers busy.</li>
       <li>Reduce evaluation time. A native RSL evaluator, better table indexes, and faster common expression paths reduce work paid for every input.</li>
       <li>Reduce fixed cost. Warm runtimes, parsed tables, cheaper serialization, and cheaper artifact commits reduce the cost amortized across each partition.</li>
       <li>Increase partition size. Returns decay while memory grows linearly, so we stop when a partition approaches the worker’s memory limit or fixed cost is already small next to evaluation time.</li>
     </ol>
-    <p>Evaluation time, fixed task time, memory per row, and utilization tell us whether this ranking applies before we implement each change.</p>
+    <p>Evaluation time, fixed task time, memory per row, and utilization tell us whether this sequence applies before we implement each change.</p>
 
     <h2>What does this let us learn?</h2>
     <p>RSL declares the valid input domain, so we can sample a deployed pricing algorithm deliberately. We can vary inputs across one pricing surface to find discontinuities, interactions, and non-monotonic behavior, or run the same risks across carriers to compare appetite, premiums, and changes in ranking.</p>
