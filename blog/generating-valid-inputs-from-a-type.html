@@ -131,96 +131,87 @@
   <article>
     <h1>Turning a type into a test generator</h1>
 
-    <p>In <a href="building-a-compiler-for-an-agent-written-dsl.html">Designing a compiler for an agent-written DSL</a>, I described an insurance rater as a total function over its valid inputs. Every valid input should produce either a premium or an explicit business rejection.</p>
+    <p>One useful thing falls out of making a program’s input contract explicit: the compiler can generate inputs from it.</p>
 
-    <p>The phrase “valid input” hides quite a lot of work. A homeowners rater might require the roof year to be no earlier than the construction year, allow different deductibles for different states and coverages, and require references between locations, buildings, and policies to form a valid entity graph. These rules overlap: changing one field can make several other choices invalid.</p>
+    <p>In <a href="building-a-compiler-for-an-agent-written-dsl.html">Designing a compiler for an agent-written DSL</a>, I described an insurance rater as a total function over its valid inputs. An agent writing one needs valid inputs to check what the program actually does. It can assemble JSON and repeatedly fix validation errors, but that spends tokens rediscovering a contract the program already contains.</p>
 
-    <p>An agent can construct examples by reading the program and repeatedly fixing validation errors. This works, but it spends tokens rediscovering a contract the program already contains. It also makes large or deliberately varied input sets annoying to produce.</p>
+    <p>Consider a small homeowners input:</p>
 
-    <p>RSL supports a fixed set of input types and requires every input domain to be explicit. Start with every value that has the right shape. A record chooses one value for each field. A Boolean chooses between two values, an enum such as <code>Occupancy</code> chooses one member of a fixed set, and an optional alarm chooses between no alarm and an <code>Alarm</code>. Numbers and dates have declared bounds. Entity declarations determine how policies, buildings, locations, drivers, and vehicles may refer to one another.</p>
+    <pre class="algorithm">Types = {
+  Year = Num { precision: int, range: [1900, 2026] },
+  Territory = Num { precision: int, range: [1, 999] }
+}
 
-    <p>These constructions give us the set <code>Fields</code>. Records combine values, while Booleans, enums, and optionals choose among alternatives (in type theory, these are product and sum types). The program’s relationships and <code>requires</code> rules select the valid subset:</p>
+Entities = {
+  Home = {
+    inputs {
+      construction_year: Year,
+      roof_year: Year,
+      territory: Territory,
+      coastal: Bool,
+      wind_deductible: Bool
+    }
+    requires exact {
+      self.roof_year &gt;= self.construction_year,
+      self.territory in { 4, 11, 42 },
+      not self.coastal or self.wind_deductible
+    }
+  }
+}</pre>
 
-    <div class="equation">ValidInputs = { x ∈ Fields | relationships(x) ∧ requires(x) }</div>
+    <p>The field types describe all structurally possible homes. The three rules carve out the values the rater accepts:</p>
 
-    <p>A type restricted by a predicate is called a <a href="https://www.cs.cmu.edu/~fp/papers/pldi91.pdf">refinement type</a>. Because RSL declares both the shape and the predicates, generating an input means finding any value in this set:</p>
+    <div class="equation">ValidHomes = { x ∈ Homes | constraints(x) }</div>
 
-    <div class="equation">find x ∈ ValidInputs</div>
+    <p>A type narrowed by a predicate is called a <a href="https://www.cs.cmu.edu/~fp/papers/pldi91.pdf">refinement type</a>. Generating an input means finding a value in it, which is called type inhabitation.</p>
 
-    <p>Finding a value of a given type is called type inhabitation. Here the compiler can do it directly from the program instead of asking an agent to reason through the contract.</p>
+    <p>This is separate from underwriting appetite. A valid input can still produce an explicit business rejection. Here, validity only means the program received a well-formed risk from its declared domain.</p>
 
-    <p>This is separate from rating eligibility. A contract-valid input may still produce an explicit rejection such as “outside underwriting appetite.” Input generation only establishes that the rater has received a well-formed risk within its declared domain.</p>
+    <h2>Guess and check</h2>
 
-    <h2>What properties do we want?</h2>
-
-    <ul>
-      <li><strong>Valid by construction.</strong> Every returned input satisfies field domains, entity relationships, and every <code>requires</code> rule.</li>
-      <li><strong>Useful coverage.</strong> Small batches cover Boolean and enum members, numeric and date boundaries, and literals mentioned by constraints before filling in interior values.</li>
-      <li><strong>Distinct and deterministic results.</strong> A generator version, contract hash, seed, and row index determine the same input.</li>
-      <li><strong>Bounded work.</strong> A difficult contract produces a resource error instead of consuming an unknown amount of time or memory.</li>
-      <li><strong>Specific invalid inputs.</strong> A negative witness violates one named rule, so the resulting diagnostic has a clear cause.</li>
-    </ul>
-
-    <p>The simplest generator chooses one value from each field and checks the result:</p>
+    <p>The first implementation writes itself:</p>
 
     <pre class="algorithm">repeat:
     choose a value for every field
-    build the entity graph
-    return the input if every constraint passes</pre>
+    return it if every constraint passes</pre>
 
-    <p>If valid inputs occupy a fraction <code>p</code> of the structural input space, the expected work is:</p>
+    <p>If valid inputs occupy a fraction <code>p</code> of the structural space:</p>
 
-    <div class="equation">expected attempts per result = 1 / p</div>
+    <div class="equation">expected guesses per input = 1 / p</div>
 
-    <p>That is fine for loose constraints and unpleasant for sparse ones. A rule requiring a number to belong to a short fixed list can make almost every random number useless. Several overlapping choices can make a repair routine explore the product of their branches.</p>
+    <p>For the example above, roughly half of the year pairs have a roof at least as new as the house, three quarters of the Boolean pairs satisfy the coastal rule, and three of 999 territory codes are allowed.</p>
 
-    <p>We can instead turn each finite choice into bits. A Boolean needs one bit. An enum with <code>k</code> members needs <code>ceil(log2 k)</code> bits, plus a bound that rules out unused bit patterns. Numbers and dates use fixed-width integers constrained to their declared ranges.</p>
+    <div class="equation">p ≈ 1/2 × 3/4 × 3/999 ≈ 1/900</div>
 
-    <p>The compiler can then lower a rule to Boolean choices joined by <code>or</code>, and require all of those rules at once with <code>and</code>. A small fragment might look like:</p>
+    <p>That is already a lot of wasted work for five fields. Real input contracts contain more fields and overlapping rules, so repairing one choice can invalidate another.</p>
 
-    <div class="equation">(owner_occupied ∨ landlord_endorsement)
-∧ (¬coastal ∨ wind_deductible_selected)</div>
+    <h2>Compile the choices</h2>
 
-    <p>More generally, the resulting formula has the shape:</p>
+    <p>We can avoid guessing by turning the finite choices into bits. A Boolean needs one bit. An enum with <code>k</code> members needs <code>ceil(log₂ k)</code> bits, plus a bound excluding unused patterns. Numbers and dates use fixed-width integers within their declared ranges.</p>
 
-    <div class="equation">(choice ∨ choice ∨ ...)
-∧ (choice ∨ choice ∨ ...)
-∧ ...</div>
+    <p>The coastal rule is already a Boolean clause:</p>
 
-    <p>This is called <a href="https://minisat.se/downloads/MiniSat.pdf">conjunctive normal form</a>, or CNF. The compiler lowers supported RSL expressions and their finite encodings into this form exactly.</p>
+    <div class="equation">¬coastal ∨ wind_deductible</div>
 
-    <p>To find an input, choose an unassigned bit. If that choice leaves a rule with only one way to be true, make the forced choice. If it makes a rule impossible, undo decisions until another branch is available:</p>
+    <p>The compiler lowers the other supported constraints into the same shape, joins the clauses with <code>and</code>, and asks a SAT solver for values that make them all true (this shape is <a href="https://minisat.se/downloads/MiniSat.pdf">conjunctive normal form</a>, or CNF). The solver assigns bits, propagates choices that have become forced, and remembers contradictions instead of exploring them again.</p>
 
-    <pre class="algorithm">choose an unassigned variable
-propagate forced assignments
-if a rule is impossible, backtrack
-if every rule is satisfied, return the assignment
-otherwise continue</pre>
+    <p>We use <a href="https://docs.rs/crate/rustsat/latest">RustSAT</a> with MiniSat. A constraint involving only membership in a fixed set remains an ordinary set; we use SAT where choices interact. Solver variables, clauses, memory, and time are all bounded because SAT still has exponential worst cases.</p>
 
-    <p>The forced step is called unit propagation. A modern solver also records each contradiction as a new rule and jumps back to the decision that caused it, avoiding the same dead end later (conflict-driven clause learning, or CDCL; see: <a href="https://minisat.se/downloads/MiniSat.pdf">An Extensible SAT-solver</a>).</p>
+    <h2>From one input to a useful sample</h2>
 
-    <p>We use <a href="https://docs.rs/crate/rustsat/latest">RustSAT</a> to build the encodings and its MiniSat adapter to solve them. Independent groups of constraints can be solved as separate components, while a large single-field membership rule stays as a direct native set rather than becoming thousands of Boolean clauses. SAT remains exponential in the worst case, so construction, clauses, variables, memory, and solver time all have explicit limits.</p>
+    <p>A solver will happily return the same easy corner of the domain every time. We instead ask it to cover a particular Boolean value, enum member, numeric boundary, or constraint literal. After each result, we add a clause excluding that exact input and solve again:</p>
 
-    <p>One satisfying assignment is only the beginning of a useful sampler. We first choose something worth covering, such as a particular enum member or numeric boundary, and ask the solver for an input that contains it:</p>
+    <div class="equation">next input = solve(contract ∧ coverage target ∧ unseen)</div>
 
-    <div class="equation">next input = solve(contract ∧ target ∧ unseen)</div>
+    <p>Once those targets are exhausted, a seed determines the remaining interior values. The command returns the requested number of distinct inputs or explains why the domain does not contain enough of them.</p>
 
-    <p>After each result, we add one rule saying that exact combination cannot recur (a blocking clause). The same solver session can then produce another input without rebuilding the contract. Once the useful boundaries and alternatives are exhausted, a seeded stream supplies interior targets for the rest of the batch.</p>
+    <p>The solver only proposes candidates. The compiler’s Core input judge checks every result before returning it, so there is still one authority on what RSL accepts.</p>
 
-    <p>The solver is a model finder, while the compiler remains the authority on RSL semantics. We materialize each assignment as an input and pass it through the Core input judge before returning it. A solver bug, unsupported encoding, or disagreement therefore fails generation instead of admitting an invalid row.</p>
+    <p>Valid inputs also make useful starting points for invalid ones. The compiler changes one toward a named rule and keeps it only when the judge reports exactly that violation:</p>
 
-    <p>Valid witnesses also give us good starting points for negative ones. For each declared rule, the compiler mutates a valid base toward a violation and keeps the result only when the Core judge reports exactly that rule and no others:</p>
+    <div class="equation">violations(input) = { target rule }</div>
 
-    <div class="equation">valid witness:     every declared rule passes
-negative witness:  one named rule fails; every other rule passes</div>
-
-    <p>These cases are more useful than arbitrary malformed inputs. They let us test the boundary of one field, relationship, or constraint without accidentally testing three unrelated failures at the same time.</p>
-
-    <p>This is close to property-based testing, except that RSL already contains the generator’s domain and predicates. Work such as <a href="https://arxiv.org/abs/1607.05443">Beginner’s Luck</a> treats constrained test generation in much the same way: construct values from predicates instead of maintaining a separate handwritten generator.</p>
-
-    <p>For an agent, <code>rslc inputs sample</code> turns the program it just wrote into a deterministic batch of valid risks. It can run those risks through the rater and look for premiums that vanish, blow up, or cluster at suspicious values. It can pin nearby values around a boundary to find cliffs, reversed monotonicity, or inputs that unexpectedly have no effect.</p>
-
-    <p>The same batch also makes a useful regression fixture. An agent can rate it before and after an edit, isolate the rows whose results changed, or send it through two runtime backends and compare their outputs. It can measure which valid regions produce business rejections, then generate more inputs around an unexpected pocket of appetite. Through the compiler API, isolated invalid witnesses let it check that each broken rule produces the intended diagnostic without tripping unrelated validation first.</p>
+    <p>For an agent, <code>rslc inputs sample</code> turns the program it just wrote into a batch it can use immediately. It can look for premiums that vanish or blow up, probe boundaries for cliffs or reversed monotonicity, compare results before and after an edit, and find valid regions that unexpectedly produce business rejections. This is constrained property-based generation with the program itself supplying the generator (see: <a href="https://arxiv.org/abs/1607.05443">Beginner’s Luck</a>).</p>
 
     <hr class="end-rule">
   </article>
