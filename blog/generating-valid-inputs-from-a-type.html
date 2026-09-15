@@ -131,9 +131,7 @@
   <article>
     <h1>Turning a type into a test generator</h1>
 
-    <p>One useful thing falls out of making a program’s input contract explicit: the compiler can generate inputs from it.</p>
-
-    <p>In <a href="building-a-compiler-for-an-agent-written-dsl.html">Designing a compiler for an agent-written DSL</a>, I described an insurance rater as a total function over its valid inputs. An agent writing one needs valid inputs to check what the program actually does. It can assemble JSON and repeatedly fix validation errors, but that spends tokens rediscovering a contract the program already contains.</p>
+    <p>In <a href="building-a-compiler-for-an-agent-written-dsl.html">Designing a compiler for an agent-written DSL</a>, I described an insurance rater as a total function over its valid inputs. Practical raters can have hundreds of inputs connected by overlapping constraints. An agent analyzing one needs large batches of valid inputs to check what the program does, plus invalid inputs that isolate particular constraints. Today’s agents are pretty bad at solving constraint satisfaction problems “in their head” by assembling JSON and repeatedly fixing validation errors. Luckily, the program already specifies the input contract, and a local solver can search it much faster than an agent can iterate through inference and validation.</p>
 
     <p>Consider a small homeowners input:</p>
 
@@ -163,8 +161,6 @@ Entities = {
 
     <div class="equation">ValidHomes = { x ∈ Homes | constraints(x) }</div>
 
-    <p>A type narrowed by a predicate is called a <a href="https://www.cs.cmu.edu/~fp/papers/pldi91.pdf">refinement type</a>. Generating an input means finding a value in it, which is called type inhabitation.</p>
-
     <p>This is separate from underwriting appetite. A valid input can still produce an explicit business rejection. Here, validity only means the program received a well-formed risk from its declared domain.</p>
 
     <h2>Guess and check</h2>
@@ -187,7 +183,7 @@ Entities = {
 
     <h2>Compile the choices</h2>
 
-    <p>We can avoid guessing by turning the finite choices into bits. A Boolean needs one bit. An enum with <code>k</code> members needs <code>ceil(log₂ k)</code> bits, plus a bound excluding unused patterns. Numbers and dates use fixed-width integers within their declared ranges.</p>
+    <p>We can avoid blind rejection sampling by compiling the contract into a constraint problem over finite choices. A Boolean needs one bit. An enum with <code>k</code> members needs <code>ceil(log₂ k)</code> bits, plus a bound excluding unused patterns. Numbers and dates use fixed-width integers within their declared ranges.</p>
 
     <p>The coastal rule is already a Boolean clause:</p>
 
@@ -195,7 +191,7 @@ Entities = {
 
     <p>The compiler lowers the other supported constraints into the same shape, joins the clauses with <code>and</code>, and asks a SAT solver for values that make them all true (this shape is <a href="https://minisat.se/downloads/MiniSat.pdf">conjunctive normal form</a>, or CNF). The solver assigns bits, propagates choices that have become forced, and remembers contradictions instead of exploring them again.</p>
 
-    <p>We use <a href="https://docs.rs/crate/rustsat/latest">RustSAT</a> with MiniSat. A constraint involving only membership in a fixed set remains an ordinary set; we use SAT where choices interact. Solver variables, clauses, memory, and time are all bounded because SAT still has exponential worst cases.</p>
+    <p>We use <a href="https://docs.rs/crate/rustsat/latest">RustSAT</a> with MiniSat. SAT still has exponential worst cases, so the compiler bounds solver time and memory.</p>
 
     <h2>From one input to a useful sample</h2>
 
@@ -211,7 +207,7 @@ Entities = {
 
     <div class="equation">violations(input) = { target rule }</div>
 
-    <p>For an agent, <code>rslc inputs sample</code> turns the program it just wrote into a batch it can use immediately. It can look for premiums that vanish or blow up, probe boundaries for cliffs or reversed monotonicity, compare results before and after an edit, and find valid regions that unexpectedly produce business rejections. This is constrained property-based generation with the program itself supplying the generator (see: <a href="https://arxiv.org/abs/1607.05443">Beginner’s Luck</a>).</p>
+    <p>For an agent, <code>rslc inputs sample</code> turns a program into a batch it can use immediately. It can find premiums that vanish or blow up, probe boundaries for cliffs or reversed monotonicity, compare results before and after an edit, and find valid inputs that unexpectedly produce business rejections. This is constrained property-based generation: the compiler constructs a generator from the contract (see: <a href="https://arxiv.org/abs/1607.05443">Beginner’s Luck</a>).</p>
 
     <hr class="end-rule">
   </article>
