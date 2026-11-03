@@ -44,6 +44,11 @@
     const [os, is, ie, oe, n, block] = el.dataset.edit.split(':').map(Number);
     if (textLen(el.textContent) === n) SPAN.set(el, { os, is, ie, oe, block: block === 1 });
   }
+  // Attributes each element had in the file, before any editing.
+  const ORIG = new WeakMap();
+  for (const el of document.querySelectorAll('[data-edit]')) {
+    ORIG.set(el, [...el.attributes].filter((a) => a.name !== 'data-edit').map((a) => [a.name, a.value]));
+  }
   const regions = [];
   const regionSet = new Set();
   for (const el of document.querySelectorAll('[data-edit]')) {
@@ -212,9 +217,68 @@
   const escAttr = (v) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/\u00a0/g, '&nbsp;');
   // Browsers type non-breaking spaces next to normal spaces and at line ends; keep deliberate ones (Fig.&nbsp;3).
   const tidySpaces = (t) => t.replace(/\u00a0(?= |$)|(?<=^| )\u00a0/g, ' ');
-  const startTag = (el) => '<' + el.localName + [...el.attributes]
-    .filter((a) => !editorAttr(a.name))
-    .map((a) => ' ' + a.name + (a.value === '' && !['alt', 'value', 'href', 'src'].includes(a.name) ? '' : '="' + escAttr(a.value) + '"')).join('') + '>';
+  // Chrome's editing commands copy computed styles onto elements (style="font-family: …")
+  // and an open <details> is view state. Neither is an edit, so both revert to the file.
+  const styleIsOurs = (el) => el.localName === 'img' || el.hasAttribute('data-font') || !!el.closest('.tex');
+  function cleanAttrs(el) {
+    const orig = ORIG.get(el);
+    const origOf = (n) => orig?.find(([k]) => k === n);
+    const out = [];
+    for (const a of el.attributes) {
+      if (editorAttr(a.name)) continue;
+      if (a.name === 'style' && !styleIsOurs(el)) { const o = origOf('style'); if (o) out.push(o); continue; }
+      if (a.name === 'open' && el.localName === 'details') { const o = origOf('open'); if (o) out.push(o); continue; }
+      out.push([a.name, a.value]);
+    }
+    for (const n of ['style', 'open']) {
+      const o = origOf(n);
+      if (o && !el.hasAttribute(n) && !(n === 'style' && styleIsOurs(el))) out.push(o);
+    }
+    return out;
+  }
+  const sameAttrs = (a, b) => !!b && a.length === b.length && a.every(([n, v], i) => b[i][0] === n && b[i][1] === v);
+  const RENAME = { b: 'strong', i: 'em' };
+  const startTag = (name, attrs) => '<' + name + attrs
+    .map(([n, v]) => ' ' + n + (v === '' && !['alt', 'value', 'href', 'src'].includes(n) ? '' : '="' + escAttr(v) + '"')).join('') + '>';
+
+  // New block elements go on their own line, indented like their siblings.
+  const BLOCK = new Set(['p', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'blockquote', 'figure', 'pre', 'details', 'section', 'div', 'table', 'hr']);
+  const lineIndent = (offset) => {
+    if (offset == null || SOURCE == null) return null;
+    const src = SOURCE.slice(0, toU16(offset));
+    const m = /\n([ \t]*)$/.exec(src);
+    return m ? m[1] : null;
+  };
+  function childIndent(parent) {
+    for (const n of parent.childNodes) {
+      if (n.nodeType === 3 && /\n/.test(n.data) && !n.data.trim() && n.nextSibling?.nodeType === 1) return n.data.slice(n.data.lastIndexOf('\n') + 1);
+    }
+    const span = SPAN.get(parent);
+    const own = span ? lineIndent(span.os) : null;
+    return own == null ? null : own + '  ';
+  }
+  function serKids(el) {
+    const kids = [...el.childNodes];
+    let out = '';
+    let indent;
+    kids.forEach((k, i) => {
+      const s = ser(k);
+      const isNewBlock = k.nodeType === 1 && !SPAN.has(k) && BLOCK.has(k.localName);
+      if (isNewBlock && i > 0 && s && !/\n[ \t]*$/.test(out)) {
+        if (indent === undefined) indent = childIndent(el);
+        if (indent != null) out = out.replace(/[ \t]+$/, '') + '\n' + indent;
+      }
+      out += s;
+    });
+    const last = kids[kids.length - 1];
+    if (last && last.nodeType === 1 && !SPAN.has(last) && BLOCK.has(last.localName)) {
+      const span = SPAN.get(el);
+      const close = span ? lineIndent(span.ie) : null;
+      if (close != null) out += '\n' + close;
+    }
+    if (BLOCK.has(el.localName) && !el.closest('pre')) out = out.replace(/^ +(?=\S)/, '').replace(/(?<=\S) +$/, '');
+    return out;
+  }
 
   function ser(node) {
     if (node.nodeType === 3) {
@@ -227,19 +291,21 @@
     const el = node;
     const span = SOURCE != null ? SPAN.get(el) : null;
     if (span && !changed.has(el)) return slice(span.os, span.oe);
-    const inner = () => [...el.childNodes].map(ser).join('');
+    const inner = () => serKids(el);
     if (!span) {
       // Leftovers from browser editing commands carry no meaning; keep their text only.
       if (el.localName === 'font') return inner();
       if (el.localName === 'span' && el.attributes.length === 1 && el.hasAttribute('style') && !el.closest('.tex')) return inner();
     }
-    const keepTags = span && !attrsChanged.has(el);
-    const open = keepTags ? slice(span.os, span.is) : startTag(el);
+    const attrs = cleanAttrs(el);
+    const keepTags = span && (!attrsChanged.has(el) || sameAttrs(attrs, ORIG.get(el)));
+    const name = span ? el.localName : (RENAME[el.localName] || el.localName);
+    const open = keepTags ? slice(span.os, span.is) : startTag(name, attrs);
     if (VOID.has(el.localName)) return open;
-    const close = keepTags ? slice(span.ie, span.oe) : '</' + el.localName + '>';
+    const close = keepTags ? slice(span.ie, span.oe) : '</' + name + '>';
     return open + inner() + close;
   }
-  const serialize = (region) => [...region.childNodes].map(ser).join('');
+  const serialize = (region) => serKids(region);
 
   // ---------------------------------------------------------------- save
   async function save() {
