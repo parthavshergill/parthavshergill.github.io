@@ -21,7 +21,7 @@
       padding: 0 1.4rem 5rem;
       background: var(--paper);
       color: var(--ink);
-      font-family: Georgia, 'Times New Roman', serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
       font-size: 18px;
       line-height: 1.72;
       text-rendering: optimizeLegibility;
@@ -36,14 +36,14 @@
       margin: 0 auto;
       padding: 1.2rem 0 0.9rem;
       border-bottom: 2px solid var(--ink);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
     }
     .brand { color: var(--ink); font-size: 0.86rem; font-weight: 700; letter-spacing: -0.02em; text-decoration: none; }
     .site-nav { display: flex; gap: 1.25rem; font-size: 0.7rem; }
     .site-nav a { color: var(--muted); text-decoration: none; }
     .site-nav a:hover, .site-nav a:focus-visible { text-decoration: underline; text-underline-offset: 0.22em; }
     article { width: min(100%, 720px); margin: 0 auto; padding-top: 4.8rem; }
-    h1, h2 { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; letter-spacing: -0.035em; }
+    h1, h2 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; letter-spacing: -0.01em; }
     h1 { max-width: 690px; margin: 0 0 3rem; font-size: clamp(2rem, 6vw, 3.65rem); font-weight: 600; line-height: 1.08; text-wrap: balance; }
     h2 { margin: 4.2rem 0 1.35rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--ink); font-size: 1.05rem; font-weight: 700; }
     p { margin: 0 0 1.45rem; }
@@ -62,7 +62,7 @@
     figcaption {
       margin-top: 0.8rem;
       color: var(--muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
       font-size: 0.68rem;
       line-height: 1.45;
       text-align: center;
@@ -71,18 +71,18 @@
     .diagram-soft { fill: var(--wash); stroke: var(--rule); stroke-width: 1; }
     .diagram-line { fill: none; stroke: var(--ink); stroke-width: 1.25; }
     .diagram-dash { fill: none; stroke: var(--rule); stroke-width: 1; stroke-dasharray: 5 5; }
-    .diagram-label { fill: var(--ink); font: 13px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    .diagram-note { fill: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .diagram-label { fill: var(--ink); font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+    .diagram-note { fill: var(--muted); font: 11px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-variant-numeric: tabular-nums; }
 
     .runtime-figure { padding: 1.2rem 1.2rem 0.7rem; border: 1px solid var(--soft-rule); background: rgba(255,255,255,0.1); }
-    .plot-title { margin-bottom: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.72rem; font-weight: 700; }
+    .plot-title { margin-bottom: 0.5rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-size: 0.72rem; font-weight: 700; }
     .plot-stage { color: var(--muted); font-weight: 400; }
     .plot-grid { stroke: var(--soft-rule); stroke-width: 1; }
     .plot-axis { stroke: var(--ink); stroke-width: 1.25; }
     .plot-path { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
     .plot-point { fill: var(--ink); stroke: var(--paper); stroke-width: 3; }
-    .plot-text { fill: var(--muted); font: 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    .plot-value { fill: var(--ink); font: 11px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 700; }
+    .plot-text { fill: var(--muted); font: 10px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+    .plot-value { fill: var(--ink); font: 11px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; font-variant-numeric: tabular-nums; font-weight: 700; }
     .runtime-figure .revealed { opacity: 0; transition: opacity 420ms ease; }
     .runtime-figure.is-visible .revealed { opacity: 1; }
 
