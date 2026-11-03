@@ -321,9 +321,9 @@
 
     <p>I recently got to build a compiler for a domain-specific language at work. At <a href="https://effectiveailabs.com/">Effective</a>, one product we offer is the ability to design, host, and reverse-engineer pricing algorithms from public rate filings. I wrote a little about our initial experiments with this idea <a href="https://effectiveailabs.com/blog/self-verifying-domain-agents">here</a>.</p>
 
-    <p>The gist of it is that rating algorithms, or raters, compute an insurance premium from a lot of factors and input values. Practically, a rater is a just a pure function consisting of table lookups, arithmetic, branches, and aggregation over objects. Raters are valuable because they encode how an insurance carrier prices risk in a market.</p>
+    <p>The gist of it is that rating algorithms, or raters, compute an insurance premium from a lot of factors and input values. Practically, a rater is just a pure function consisting of table lookups, arithmetic, branches, and aggregation over objects. Raters are valuable because they encode how an insurance carrier prices risk in a market.</p>
 
-    <p>A well-implemented rater should be a total function over its input type. This property gives us some useful design constraints that result in a compiled, executable DSL (Rating Specification Language or RSL) seems easier for agents to reason about than a more flexible language like Python or TypeScript, probably because agents do very well at writing code until a compiler stops yelling at them.</p>
+    <p>A well-implemented rater should be a total function over its input type. This property gives us some useful design constraints that result in a compiled, executable DSL (Rating Specification Language, or RSL) that seems easier for agents to reason about than a more flexible language like Python or TypeScript, probably because agents do very well at writing code until a compiler stops yelling at them.</p>
 
     <figure class="comparison" aria-labelledby="compiler-loop-caption">
       <div class="comparison-grid">
@@ -342,16 +342,17 @@
       <figcaption id="compiler-loop-caption" class="comparison-caption">more alike than different</figcaption>
     </figure>
 
-    <p>Eventually, either models will get good enough to one-shot these programs in any programming language from a universe of PDF and Excel data and we can throw out RSL and its compiler, but for now it's still proving useful.</p>
+    <p>Eventually, models will get good enough to one-shot these programs in any programming language from a universe of PDF and Excel data, and we can throw out RSL and its compiler. For now, it’s still proving useful.</p>
 
     <h2>What properties do we want?</h2>
 
     <p>At a high level, we want to make it hard to represent a rater that is ambiguous, incomplete, or hard to inspect.</p>
 
     <ul>
-      <li><strong>One source of truth for semantics and execution.</strong> The rating program should be both specification and executable so the two can't drift (the actuary &lt;-&gt; software engineer correspondence gap causes a lot of headaches in the industry today).</li>
-      <li><strong>Total function.</strong> For any valid input, the rater should produce a rating result, and it should be deterministic</li>
-      <li><strong style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif;">Static errors where possible.</strong> Missing references, unsatisfiable constraints on types, dead code, operands with incompatible dimensions, etc., should fail at compile time rather than turn into strange premiums at runtime.</li><li><b>Total lookups. </b>Probably the most important static check: If a program reads from a rating table, every possible runtime key should resolve unambiguously to a value under that table’s matching rules (tables in RSL declare type signatures and are accessed through lookup functions that declare type signatures).</li>
+      <li><strong>One source of truth for semantics and execution.</strong> The rating program should be both specification and executable, so the two can’t drift (the actuary ↔ software engineer correspondence gap causes a lot of headaches in the industry today).</li>
+      <li><strong>Total function.</strong> For any valid input, the rater should produce a rating result, and it should be deterministic.</li>
+      <li><strong>Static errors where possible.</strong> Missing references, unsatisfiable constraints on types, dead code, operands with incompatible dimensions, etc., should fail at compile time rather than turn into strange premiums at runtime.</li>
+      <li><strong>Total lookups.</strong> Probably the most important static check: if a program reads from a rating table, every possible runtime key should resolve unambiguously to a value under that table’s matching rules. (In RSL, tables and the lookup functions that read them both declare type signatures.)</li>
       <li><strong>Introspection.</strong> The compiler should be able to answer questions like: what does this value depend on, which source filing did this calculation come from, what inputs can reach this branch, and what table does this lookup use?</li>
     </ul>
 
@@ -360,16 +361,30 @@
     <p>We needed a few things from a product standpoint:</p>
 
     <ul>
-      <li>RSL is intended to be a specification of a rating algorithm but also an executable, so we need something to make it executable.</li><li>We want to make it fast, since the input data for these programs consists of ~100s of 1000s to millions of complex records.</li><li>We wanted to offer the ability to export raters to Python, Excel, or a JSON model.</li>
+      <li>RSL is intended to be a specification of a rating algorithm but also an executable, so we need something to make it executable.</li>
+      <li>We want to make it fast, since the input data for these programs consists of hundreds of thousands to millions of complex records.</li>
+      <li>We want to offer the ability to export raters to Python, Excel, or a JSON model.</li>
       <li>We need to introspect on the program so the agent has a richer set of debugging tools (feedback) than an out-of-the-box compiler provides.</li>
       <li>A constrained DSL reduces the review surface. More things are guaranteed by construction. More expressive languages gave agents too many escape hatches to do neurotic things like set default values, implement standard operations in inefficient ways, disregard dimensionality, and so on.</li>
-      <li>A compiled DSL lets us enforce things that would be annoying for humans to maintain manually, like explicit declarations of almost everything, such as citations to source documents, semantic annotations of the code, and proofs that ordinary table lookups are total over their declared domains (which often catches errors in table extraction).</li></ul>
+      <li>A compiled DSL lets us enforce things that would be annoying for humans to maintain manually, like explicit declarations of almost everything, such as citations to source documents, semantic annotations of the code, and proofs that ordinary table lookups are total over their declared domains (which often catches errors in table extraction).</li>
+    </ul>
 
-    <p>The version from the earlier blog post was a Python approximation of a compiler. Agents were causing the codebase to tend toward a mess of stringly typed objects, which undermined the guarantees we wanted the compiler to provide. </p><p>To make the RSL compiler easier for agents to maintain and extend, so I rewrote it in Rust with the help of Codex. Writing a compiler with agents was its own experiment, with its own creative verification mechanisms, and probably deserves a post of its own.</p><details class="rust-details"><summary>Why Rust?</summary><ul><li>Fast runtime (obviously)</li><li>Strong typing.</li><li>Low level control over memory, since we need to do some optimizing due to the size of the tabular data rating workloads operate over.</li><li>Nice ecosystem: <a href="https://pyo3.rs/main/" style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif;">PyO3</a> has Python bindings, <a href="https://rustxlsxwriter.github.io/" style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif;"><code>rust_xlsxwriter</code></a> lets the compiler reuse cached data to emit XLSX files without the memory overhead we encountered with <a href="https://openpyxl.readthedocs.io/en/stable/index.html" style="font-family: -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif;"><code>openpyxl</code></a>, other fun packages we may want to use eventually.</li>
+    <p>The version from the earlier blog post was a Python approximation of a compiler. Agents were causing the codebase to tend toward a mess of stringly typed objects, which undermined the guarantees we wanted the compiler to provide.</p>
+
+    <p>To make the RSL compiler easier for agents to maintain and extend, I rewrote it in Rust with the help of Codex. Writing a compiler with agents was its own experiment, with its own creative verification mechanisms, and probably deserves a post of its own.</p>
+
+    <details class="rust-details">
+      <summary>Why Rust?</summary>
+      <ul>
+        <li>Fast runtime (obviously).</li>
+        <li>Strong static checks.</li>
+        <li>Low-level control over memory, since we need to do some optimizing due to the size of the tabular data that rating workloads operate over.</li>
+        <li>Nice ecosystem: <a href="https://pyo3.rs/main/">PyO3</a> gives us Python bindings, and <a href="https://rustxlsxwriter.github.io/"><code>rust_xlsxwriter</code></a> lets the compiler reuse cached data to emit XLSX files without the memory overhead we encountered with <a href="https://openpyxl.readthedocs.io/en/stable/index.html"><code>openpyxl</code></a>. There are other fun packages we may want to use eventually.</li>
+        <li>Funnily enough, the same things that make Rust a good fit for agents inform the properties we want for our DSL as well.</li>
       </ul>
     </details>
 
-    <p class="section-turn"> In its present form, RSL looks like a small, statically typed spreadsheet language. It has entities with inputs and computed values, pure expressions, explicit relationships, and tables as first-class declarations. Here is a toy example:</p>
+    <p class="section-turn">In its present form, RSL looks like a small, statically typed spreadsheet language. It has entities with inputs and computed values, pure expressions, explicit relationships, and tables as first-class declarations. Here is a toy example:</p>
 
     <section class="rsl-demo" aria-label="Interactive RSL compiler example">
       <div class="demo-tabs" role="tablist" aria-label="Example files">
@@ -452,11 +467,11 @@ false,1.00</pre></div>
       </div>
     </section>
 
-    <p><code>rslc</code>, the compiler’s CLI, has some commands that are particularly useful for agents</p>
+    <p><code>rslc</code>, the compiler’s CLI, has some commands that are particularly useful for agents:</p>
 
     <ul>
-      <li><code>rslc check</code> loads the table data for the program proves that every valid runtime key based on the table's type declaration resolves unambiguously to a value under the table’s matching scheme (interpolation, banding, exact, etc.). This needs to be fast because agents run it often as they write RSL files.</li>
-      <li><code>rslc inputs sample</code> constructs valid inputs from the domain described by the program’s types, ranges, entity relationships, and constraints. RSL input types can get very complex, and agents struggle to produce valid input objects, and for some cases (like probing if the program has appropriate limits implemented by 'fuzzing' against very large and very small values) we want to generate lots of random-ish valid and invalid inputs mechanically and fast.</li>
+      <li><code>rslc check</code> loads the table data for the program and proves that every valid runtime key, based on the table’s type declaration, resolves unambiguously to a value under the table’s matching scheme (interpolation, banding, exact, etc.). This needs to be fast because agents run it often as they write RSL files.</li>
+      <li><code>rslc inputs sample</code> constructs valid inputs from the domain described by the program’s types, ranges, entity relationships, and constraints. RSL input types can get very complex, and agents struggle to produce valid input objects. In some cases (like probing whether the program implements appropriate limits by “fuzzing” it with very large and very small values), we want to generate lots of random-ish valid and invalid inputs mechanically and fast.</li>
     </ul>
 
   </article>
