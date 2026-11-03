@@ -323,7 +323,7 @@
 
     <p>The gist of it is that rating algorithms, or raters, compute an insurance premium from a lot of factors and input values. Practically, a rater is just a pure function consisting of table lookups, arithmetic, branches, and aggregation over objects. Raters are valuable because they encode how an insurance carrier prices risk in a market.</p>
 
-    <p>A well-implemented rater should be a total function over its input type. This property gives us some useful design constraints that result in a compiled, executable DSL (Rating Specification Language, or RSL) that seems easier for agents to reason about than a more flexible language like Python or TypeScript, probably because agents do very well at writing code until a compiler stops yelling at them.</p>
+    <p>A well-implemented rater should be a total function over its input type. This property gives us some useful design constraints that result in a compiled, executable DSL (Rating Specification Language, or RSL) that seems easier for agents to reason about than a more flexible language like Python or TypeScript, probably because agents write good code when a compiler yells at them until it’s right.</p>
 
     <figure class="comparison" aria-labelledby="compiler-loop-caption">
       <div class="comparison-grid">
@@ -384,7 +384,7 @@
       </ul>
     </details>
 
-    <p class="section-turn">In its present form, RSL looks like a small, statically typed spreadsheet language. It has entities with inputs and computed values, pure expressions, explicit relationships, and tables as first-class declarations. Here is a toy example:</p>
+    <p class="section-turn">In its present form, RSL looks like a small, statically typed spreadsheet language. It has records with inputs and computed values, pure expressions, explicit relationships, and tables as first-class declarations. Here is a toy example:</p>
 
     <section class="rsl-demo" aria-label="Interactive RSL compiler example">
       <div class="demo-tabs" role="tablist" aria-label="Example files">
@@ -392,66 +392,53 @@
         <button class="demo-tab" id="tab-table" type="button" role="tab" aria-selected="false" aria-controls="panel-table" data-panel="panel-table">tables/AlarmFactors.csv</button>
       </div>
       <div class="demo-panel is-active" id="panel-rsl" role="tabpanel" aria-labelledby="tab-rsl"><pre>spec {
-  carrier: "Example Mutual",
-  state: CA,
-  product: "Homeowners",
-  effective_date: 2026-08-30,
+    rsl: "0.5",
+    rater: "example/homeowners",
+    carrier: "Example Mutual",
+    state: CA,
+    product: "Homeowners",
+    effective_date: 2026-08-30,
 }
 
 # Source declarations make filing provenance part of the program.
 Sources = {
-  manual: Source = {
-    path: "sources/rate-manual.pdf",
-    title: "Homeowners Rate Manual"
-  }
-}
-
-Types = {
-  # Domain types carry their own numeric precision.
-  Factor = Num { precision: factor },
-  Premium = Num { precision: cents }
+    manual: Source = {
+        artifact: artifact("019f819b-1674-7046-bc54-6f18cb149d6d"),
+        kind: pdf
+    }
 }
 
 Tables = {
-  # The table is tied to the page it was extracted from.
-  AlarmFactors [cite: manual:p12] :
-    (Policy.has_alarm) -&gt; { factor: Factor }
-    match: specific
-    columns: {
-      has_alarm: "has_alarm" [type: Bool],
-      factor: "factor" [type: Factor]
-    }
+    # The table is tied to the page it was extracted from.
+    AlarmFactors [cite: manual:p12] :
+        table dims (has_alarm: Bool) -&gt; {
+            factor: Factor
+        }
 }
 
-Entities = {
-  Policy = {
-    inputs {
-      base_premium: Premium [cite: manual:p10],
-      has_alarm: Bool,
-      eligible: Bool
-    }
-    # Constraints define the valid input domain rslc can sample.
-    requires {
-      self.base_premium &gt;= 500,
-      self.base_premium &lt;= 2000
-    }
-    step rating [cite: manual:p12] {
-      # lookup! must resolve to exactly one row for every valid key.
-      alarm_factor: Factor =
-        lookup!(AlarmFactors, self.has_alarm).factor,
-      # Every valid input produces a premium or an explicit rejection.
-      written_premium: Premium =
-        if self.eligible then
-          self.base_premium * self.alarm_factor
-        else
-          reject("INELIGIBLE", "Outside underwriting appetite")
-    }
-  }
+Records = {
+    Policy = {
+        inputs {
+            # Every numeric input declares a precision and a range.
+            # Together they define the input domain rslc can sample.
+            base_premium: Num {precision: 0.01} where self in [500, 2000],
+            has_alarm: Bool,
+            eligible: Bool
+        },
+        step rating [cite: manual:p12] {
+            # lookup! must resolve to exactly one row for every admitted key.
+            alarm_factor: Factor = lookup!(AlarmFactors, self.has_alarm).factor,
+            # Calculations are total: every admitted input gets a premium.
+            written_premium: Premium [cite: manual:p12] =
+                round(self.base_premium * self.alarm_factor, 2, half_up)
+        }
+    # A refused request fails admission with a filed code, before any rating.
+    } where self.eligible [code: "INELIGIBLE", message: "Outside underwriting appetite", cite: manual:p3]
 }
 
 # Only declared outcomes become part of the published interface.
 RatingOutcomes = {
-  written_premium: Policy.written_premium
+    written_premium: Policy.written_premium,
 }</pre></div>
       <div class="demo-panel" id="panel-table" role="tabpanel" aria-labelledby="tab-table"><pre>has_alarm,factor
 true,0.95
@@ -485,20 +472,20 @@ false,1.00</pre></div>
     const validTable = tablePanel.textContent;
     const commandOutputs = {
       check: {
-        command: 'rslc check rater.rsl',
-        result: 'PASS rater.rsl (strict)'
+        command: "rslc check rater.rsl",
+        result: "PASS rater.rsl (strict)"
       },
       missing: {
-        command: 'rslc check rater.rsl',
-        result: 'FAIL rater.rsl (strict)\nerror: invariant runner: config: E-LOOKUP-TOTAL: table `AlarmFactors`: incomplete coverage for keys [false]'
+        command: "rslc check rater.rsl",
+        result: "FAIL rater.rsl (strict)\nerror: E-LOOKUP-GAP rater.rsl:37:36: this lookup of `AlarmFactors` can reach (has_alarm: false), but `AlarmFactors` has no row for it. A lookup's key type must exclude every absent row: …; or add the filed row to `AlarmFactors`; or when the filing has an all-other row, add `otherwise [cite: source:region]: { … }`"
       },
       impossible: {
-        command: 'rslc check rater.rsl',
-        result: 'FAIL rater.rsl (strict)\nerror: E-INPUT-GENERATE: input contract has no valid witness: solver proved the declared constraints are unsatisfiable'
+        command: "rslc check rater.rsl",
+        result: "FAIL rater.rsl (strict)\nerror: E-INPUT-GENERATE rater.rsl:27:5: no request is admitted: Policy field `base_premium` admits no value"
       },
       sample: {
-        command: 'rslc inputs sample rater.rsl --n 2 --seed 7',
-        result: 'Generated 2 valid inputs from rater.rsl\n{"instances": [{"entity": "Policy", "name": "policy_1", "values": {"base_premium": 2000.0, "eligible": false, "has_alarm": false}}]}\n{"instances": [{"entity": "Policy", "name": "policy_1", "values": {"base_premium": 500.0, "eligible": false, "has_alarm": false}}]}'
+        command: "rslc inputs sample rater.rsl --n 2 --seed 7",
+        result: "Generated 2 valid inputs from rater.rsl\n{\"Policy\": {\"base_premium\": 500, \"eligible\": true, \"has_alarm\": false}}\n{\"Policy\": {\"base_premium\": 2000, \"eligible\": true, \"has_alarm\": true}}"
       }
     };
 
@@ -524,7 +511,7 @@ false,1.00</pre></div>
           tablePanel.textContent = 'has_alarm,factor\ntrue,0.95';
           showPanel('panel-table');
         } else if (selected === 'impossible') {
-          rslPanel.textContent = validRsl.replace('self.base_premium >= 500', 'self.base_premium >= 2500');
+          rslPanel.textContent = validRsl.replace("where self in [500, 2000],", "where self in [500, 2000] where self in [2500, _],");
           showPanel('panel-rsl');
         }
 
